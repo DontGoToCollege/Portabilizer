@@ -1,0 +1,68 @@
+<Window x:Class="Portabilizer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Portabilizer" Width="940" Height="640" MinWidth="780" MinHeight="520"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="24" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Text="Pick an app" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <TextBox x:Name="Search" DockPanel.Dock="Top" Margin="0,0,0,10" TextChanged="Search_TextChanged"
+                     ToolTip="Type to filter the list" AutomationProperties.Name="Search apps" />
+            <ListBox x:Name="Apps" SelectionChanged="Apps_SelectionChanged" HorizontalContentAlignment="Stretch"
+                     AutomationProperties.Name="Installed apps">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,3">
+                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <TextBlock x:Name="Hint" Grid.Column="2" Text="Choose an app on the left to see whether it can be made portable."
+                   VerticalAlignment="Center" HorizontalAlignment="Center" Opacity="0.7" TextWrapping="Wrap" />
+
+        <DockPanel x:Name="Details" Grid.Column="2" Visibility="Collapsed">
+            <TextBlock x:Name="AppName" DockPanel.Dock="Top" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock x:Name="AppInfo" DockPanel.Dock="Top" Opacity="0.7" Margin="0,2,0,12" TextWrapping="Wrap" />
+
+            <Border x:Name="VerdictBox" DockPanel.Dock="Top" CornerRadius="6" Padding="12,8" Margin="0,0,0,8">
+                <TextBlock x:Name="VerdictText" FontWeight="SemiBold" />
+            </Border>
+
+            <StackPanel DockPanel.Dock="Bottom">
+                <TextBlock Text="Program to start" Margin="0,0,0,4" />
+                <ComboBox x:Name="MainExe" HorizontalAlignment="Stretch" Margin="0,0,0,10"
+                          AutomationProperties.Name="Program to start" />
+                <CheckBox x:Name="IncludeData" IsChecked="True" Content="Include my settings and saved data" />
+                <TextBlock x:Name="DataNote" FontSize="12" Opacity="0.7" Margin="0,2,0,10" TextWrapping="Wrap" />
+                <TextBlock Text="Save to" Margin="0,0,0,4" />
+                <DockPanel Margin="0,0,0,12">
+                    <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0" Click="Browse_Click" />
+                    <TextBox x:Name="SaveTo" AutomationProperties.Name="Save to folder" />
+                </DockPanel>
+                <ProgressBar x:Name="Progress" Height="6" Margin="0,0,0,6" Maximum="1" Visibility="Collapsed" />
+                <TextBlock x:Name="Status" FontSize="12" Margin="0,0,0,6" TextTrimming="CharacterEllipsis" />
+                <Button x:Name="Make" Content="Make portable" HorizontalAlignment="Right" Padding="20,8" Click="Make_Click" />
+            </StackPanel>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,0,0,12">
+                <ItemsControl x:Name="Findings">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="2,4" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,122 @@
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace Portabilizer.Core;
+
+/// <summary>Writes a portable package. The installed app is only read, and the manifest goes last so a half-finished package never runs.</summary>
+public static partial class Capturer
+{
+    public static void Run(Plan plan, string mainExe, bool includeData, string outDir, IProgress<(double Fraction, string Status)> progress)
+    {
+        var app = plan.App;
+        if (Directory.Exists(outDir) && Directory.EnumerateFileSystemEntries(outDir).Any())
+            throw new IOException("That folder already has files in it. Pick an empty one.");
+        if (IsInside(outDir, app.InstallPath))
+            throw new IOException("The portable folder can't go inside the app's own folder.");
+        if (Win.AnyRunningFrom(app.InstallPath))
+            throw new IOException($"{app.Name} is open. Close it and try again.");
+
+        var needed = plan.AppBytes + (includeData ? plan.DataBytes : 0);
+        Directory.CreateDirectory(outDir);
+        var free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(outDir))!).AvailableFreeSpace;
+        if (free < needed)
+        {
+            Directory.Delete(outDir);
+            throw new IOException($"Not enough free space. This needs {Size(needed)} and the drive has {Size(free)}.");
+        }
+
+        try
+        {
+            long done = 0;
+            void Copied(long bytes, string status)
+            {
+                done += bytes;
+                progress.Report((needed == 0 ? 1 : Math.Min(1, (double)done / needed), status));
+            }
+
+            var appDir = Path.Combine(outDir, "App");
+            CopyTree(app.InstallPath, appDir, Copied);
+            var relative = Path.GetRelativePath(app.InstallPath, mainExe);
+            Runtimes.CopyInto(appDir, Path.GetDirectoryName(Path.Combine(appDir, relative))!);
+
+            var folders = new List<FolderLink>();
+            if (includeData)
+                foreach (var folder in plan.Folders)
+                {
+                    var source = Path.Combine("Data", "Folders", folders.Count.ToString());
+                    CopyTree(folder.RealPath, Path.Combine(outDir, source), Copied);
+                    folders.Add(new(folder.Target, source));
+                }
+
+            progress.Report((1, "Saving settings from the registry..."));
+            var keys = new List<KeyFile>();
+            if (includeData)
+            {
+                Directory.CreateDirectory(Path.Combine(outDir, "Data", "Registry"));
+                foreach (var key in plan.Keys)
+                {
+                    var file = Path.Combine("Data", "Registry", $"{keys.Count}.reg");
+                    var full = Path.Combine(outDir, file);
+                    Win.Reg("export", key, full, "/y");
+                    File.WriteAllText(full, Win.ToTokens(File.ReadAllText(full, Encoding.Unicode), app.InstallPath, Win.Profile), Encoding.Unicode);
+                    keys.Add(new(key, file));
+                }
+            }
+
+            var exeName = FileSafe().Replace($"{CleanName(app.Name)} Portable", "") + ".exe";
+            File.Copy(Environment.ProcessPath!, Path.Combine(outDir, exeName));
+            var slug = Slug().Replace(app.Name, "-").Trim('-');
+            var id = $"{slug[..Math.Min(slug.Length, 32)]}-{Guid.NewGuid():N}";
+            new Manifest(id, app.Name, app.Version, app.Publisher, Path.Combine("App", relative), app.InstallPath,
+                keys.Any(k => k.Key.StartsWith("HKLM")), folders, keys).Save(outDir);
+        }
+        catch
+        {
+            Directory.Delete(outDir, recursive: true); // created empty above, so this is only our own partial copy
+            throw;
+        }
+    }
+
+    static bool IsInside(string path, string folder) =>
+        (Path.GetFullPath(path).TrimEnd('\\') + @"\").StartsWith(folder.TrimEnd('\\') + @"\", StringComparison.OrdinalIgnoreCase);
+
+    static string CleanName(string name) => Bracketed().Replace(name, "").Trim();
+
+    static void CopyTree(string from, string to, Action<long, string> copied)
+    {
+        var pending = new Stack<(DirectoryInfo From, string To)>();
+        pending.Push((new DirectoryInfo(from), to));
+        while (pending.Count > 0)
+        {
+            var (dir, target) = pending.Pop();
+            Directory.CreateDirectory(target);
+            foreach (var item in dir.EnumerateFileSystemInfos())
+            {
+                if (item.Attributes.HasFlag(FileAttributes.ReparsePoint)) continue; // links point elsewhere and could loop
+                var dest = Path.Combine(target, item.Name);
+                if (item is DirectoryInfo sub) pending.Push((sub, dest));
+                else if (item is FileInfo file)
+                {
+                    file.CopyTo(dest);
+                    copied(file.Length, file.Name);
+                }
+            }
+        }
+    }
+
+    public static string Size(long bytes) => bytes switch
+    {
+        >= 1L << 30 => $"{bytes / (double)(1L << 30):0.0} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):0} MB",
+        _ => $"{bytes / 1024.0:0} KB",
+    };
+
+    [GeneratedRegex(@"\(.*?\)")]
+    private static partial Regex Bracketed();
+
+    [GeneratedRegex(@"[<>:""/\\|?*]")]
+    private static partial Regex FileSafe();
+
+    [GeneratedRegex(@"[^A-Za-z0-9]+")]
+    private static partial Regex Slug();
+}
