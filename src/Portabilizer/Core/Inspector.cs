@@ -241,15 +241,12 @@ public static partial class Inspector
         foreach (var record in Directory.EnumerateFiles(steamapps, "appmanifest_*.acf"))
         {
             var text = File.ReadAllText(record);
-            if (!InstallDirLine().Match(text).Groups[1].Value.Equals(folder, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!Steam.InstallDirOf(text).Equals(folder, StringComparison.OrdinalIgnoreCase)) continue;
             if (!FullyInstalledLine().IsMatch(text)) return null;
             return new(Path.GetFileNameWithoutExtension(record)["appmanifest_".Length..], folder, record);
         }
         return null;
     }
-
-    [GeneratedRegex(@"""installdir""\s+""(.+?)""", RegexOptions.IgnoreCase)]
-    private static partial Regex InstallDirLine();
 
     [GeneratedRegex(@"""StateFlags""\s+""4""", RegexOptions.IgnoreCase)]
     private static partial Regex FullyInstalledLine();

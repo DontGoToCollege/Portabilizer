@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- Steam games are found even when Steam leaves their install location blank in Windows' app list, which often happens after reinstalling a game. Before, they showed "This app's folder can't be found."
+
 ## 0.1.4
 
 - **Fixes a bug that could damage an installed app's settings.** If an app handed over to another copy of itself, the starter could decide it had closed and swap the settings back while it was still running. With Discord on a PC that also has Discord installed, this reset the installed copy's settings and sign-in. The starter now waits for every copy of the app, and won't start while one is already open. Remake any portable folders made with an earlier version.

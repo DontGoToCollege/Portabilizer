@@ -195,7 +195,8 @@ New-Item -ItemType Directory -Force $saves | Out-Null
 New-Item $steamUninstall -Force | Out-Null
 Set-ItemProperty $steamUninstall DisplayName 'Fake Game'
 Set-ItemProperty $steamUninstall Publisher 'SmokePub Inc'
-Set-ItemProperty $steamUninstall InstallLocation $game
+# Like Steam's real entries after a reinstall: no InstallLocation, so the game is found through Steam's own record.
+Set-ItemProperty $steamUninstall UninstallString "`"$fake\fakesteam.exe`" steam://uninstall/999"
 $out = "$Work\steamout"
 $p = Start-Process $Exe -ArgumentList "--capture `"Fake Game`" `"$out`"" -PassThru -Wait
 Check "capture exit 0 (got $($p.ExitCode))" ($p.ExitCode -eq 0)

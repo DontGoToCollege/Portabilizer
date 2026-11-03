@@ -37,6 +37,9 @@ public static partial class InstalledApps
             var uninstall = k.GetValue("UninstallString") as string;
             var uninstaller = uninstall?.Contains("steam://") == true ? "" : ExeIn(uninstall); // Steam's entry names Steam itself, not the game
             var install = (k.GetValue("InstallLocation") as string)?.Trim().Trim('"').Replace('/', '\\').TrimEnd('\\') ?? "";
+            // Steam often leaves InstallLocation blank, so its own records say where the game is.
+            if (install.Length == 0 && uninstall is not null && SteamUninstall().Match(uninstall) is { Success: true } steam)
+                install = Steam.GameFolder(steam.Groups[1].Value, steam.Groups[2].Value) ?? "";
             if (install.Length == 0) install = Path.GetDirectoryName(icon.Length > 0 ? icon : uninstaller) ?? "";
             yield return new InstalledApp(name.Trim(), k.GetValue("DisplayVersion") as string ?? "", k.GetValue("Publisher") as string ?? "", install, icon);
         }
@@ -58,4 +61,7 @@ public static partial class InstalledApps
 
     [GeneratedRegex(@"([A-Za-z]:\\[^""]*?\.exe)", RegexOptions.IgnoreCase)]
     private static partial Regex ExePath();
+
+    [GeneratedRegex(@"([A-Za-z]:\\[^""]*?steam\.exe)""?\s+steam://uninstall/(\d+)", RegexOptions.IgnoreCase)]
+    private static partial Regex SteamUninstall();
 }

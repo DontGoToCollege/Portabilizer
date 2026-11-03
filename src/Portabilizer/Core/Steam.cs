@@ -39,6 +39,20 @@ internal static partial class Steam
         return found;
     }
 
+    /// <summary>The game's folder according to Steam's own record, in whichever library holds it.</summary>
+    public static string? GameFolder(string exe, string appId)
+    {
+        foreach (var library in Libraries(exe))
+        {
+            var record = Path.Combine(library, $"appmanifest_{appId}.acf");
+            if (File.Exists(record) && InstallDirOf(File.ReadAllText(record)) is { Length: > 0 } folder)
+                return Path.Combine(library, "common", folder);
+        }
+        return null;
+    }
+
+    public static string InstallDirOf(string recordText) => InstallDirLine().Match(recordText).Groups[1].Value;
+
     public static bool IsRunning(string exe)
     {
         var running = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exe));
@@ -58,4 +72,7 @@ internal static partial class Steam
 
     [GeneratedRegex(@"""path""\s+""(.+?)""", RegexOptions.IgnoreCase)]
     private static partial Regex LibraryPath();
+
+    [GeneratedRegex(@"""installdir""\s+""(.+?)""", RegexOptions.IgnoreCase)]
+    private static partial Regex InstallDirLine();
 }
