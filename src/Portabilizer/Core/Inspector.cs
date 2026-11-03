@@ -8,6 +8,7 @@ public enum Level { Good, Caution, Blocked }
 
 public sealed record Finding(Level Level, string Text);
 public sealed record DataFolder(string RealPath, string Target, long Bytes);
+public sealed record SteamGame(string AppId, string InstallDir, string ManifestPath);
 
 /// <summary>What capturing an app would involve, and how likely it is to work elsewhere.</summary>
 public sealed class Plan
@@ -15,6 +16,7 @@ public sealed class Plan
     public required InstalledApp App { get; init; }
     public List<string> Exes { get; } = [];
     public long AppBytes { get; set; }
+    public SteamGame? Steam { get; set; }
     public List<DataFolder> Folders { get; } = [];
     public List<string> Keys { get; } = [];
     public List<Finding> Findings { get; } = [];
@@ -210,7 +212,16 @@ public static partial class Inspector
     {
         var path = plan.App.InstallPath;
         if (path.Contains(@"\steamapps\", StringComparison.OrdinalIgnoreCase))
-            plan.Findings.Add(new(Level.Caution, "This is a Steam game, so Steam must be installed and signed in on each PC."));
+        {
+            plan.Steam = FindSteamGame(path);
+            if (plan.Steam is null)
+                plan.Findings.Add(new(Level.Blocked, "Steam hasn't finished installing or updating this game, so it can't be copied yet."));
+            else
+            {
+                plan.Findings.Add(new(Level.Caution, "Steam must be installed on each PC and signed in to the account that owns this game. Steam should play the portable files instead of downloading the game, and restarts around each session."));
+                plan.Findings.Add(new(Level.Caution, "While the game is connected, don't choose Uninstall in Steam, as that could delete the portable copy."));
+            }
+        }
         if (path.Contains(@"\Epic Games\", StringComparison.OrdinalIgnoreCase))
             plan.Findings.Add(new(Level.Caution, "This is an Epic game, so the Epic launcher must be installed and signed in on each PC."));
         if (plan.App.Publisher.Contains("Riot Games", StringComparison.OrdinalIgnoreCase))
@@ -218,6 +229,30 @@ public static partial class Inspector
         if (plan.App.Publisher.Contains("Adobe", StringComparison.OrdinalIgnoreCase))
             plan.Findings.Add(new(Level.Caution, "Adobe apps depend on Adobe's own sign-in and background services, so this may refuse to start elsewhere."));
     }
+
+    /// <summary>Finds Steam's record of a fully installed game, which is what lets another PC's Steam accept the same files.</summary>
+    static SteamGame? FindSteamGame(string install)
+    {
+        const string Common = @"\steamapps\common\";
+        var at = install.IndexOf(Common, StringComparison.OrdinalIgnoreCase);
+        if (at < 0) return null;
+        var steamapps = install[..(at + Common.Length - @"common\".Length)];
+        var folder = install[(at + Common.Length)..].Split('\\')[0];
+        foreach (var record in Directory.EnumerateFiles(steamapps, "appmanifest_*.acf"))
+        {
+            var text = File.ReadAllText(record);
+            if (!InstallDirLine().Match(text).Groups[1].Value.Equals(folder, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!FullyInstalledLine().IsMatch(text)) return null;
+            return new(Path.GetFileNameWithoutExtension(record)["appmanifest_".Length..], folder, record);
+        }
+        return null;
+    }
+
+    [GeneratedRegex(@"""installdir""\s+""(.+?)""", RegexOptions.IgnoreCase)]
+    private static partial Regex InstallDirLine();
+
+    [GeneratedRegex(@"""StateFlags""\s+""4""", RegexOptions.IgnoreCase)]
+    private static partial Regex FullyInstalledLine();
 
     [GeneratedRegex(@"\(.*?\)")]
     private static partial Regex Brackets();

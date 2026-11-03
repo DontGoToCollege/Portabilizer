@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         Findings.ItemsSource = plan.Findings;
         MainExe.ItemsSource = plan.Exes.Select(x => Path.GetRelativePath(app.InstallPath, x)).ToList();
         MainExe.SelectedIndex = plan.Exes.Count > 0 ? 0 : -1;
+        MainExe.IsEnabled = plan.Steam is null; // Steam picks what to start
         IncludeData.IsEnabled = plan.Folders.Count + plan.Keys.Count > 0;
         DataNote.Text = plan.Folders.Count + plan.Keys.Count > 0
             ? $"Adds {Capturer.Size(plan.DataBytes)} of settings. This can include saved sign-ins, so don't share the folder with other people if this is ticked."

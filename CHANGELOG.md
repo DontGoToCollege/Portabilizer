@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3
+
+- Portable Steam games now run through Steam using the portable files, instead of Steam offering to reinstall them. The portable file connects the game to Steam, starts it, and disconnects it afterwards, keeping any update Steam applied.
+- A Steam game that hasn't finished installing or updating now says so, instead of being judged by all of Steam's folder.
+
+## 0.1.2
+
+Internal test build, not released.
+
 ## 0.1.1
 
 First public release.

@@ -34,7 +34,8 @@ public static partial class InstalledApps
             if (k?.GetValue("DisplayName") is not string name || string.IsNullOrWhiteSpace(name)) continue;
             if (k.GetValue("SystemComponent") is 1 || k.GetValue("ParentKeyName") is not null || NotAnApp().IsMatch(name)) continue;
             var icon = ExeIn(k.GetValue("DisplayIcon") as string);
-            var uninstaller = ExeIn(k.GetValue("UninstallString") as string);
+            var uninstall = k.GetValue("UninstallString") as string;
+            var uninstaller = uninstall?.Contains("steam://") == true ? "" : ExeIn(uninstall); // Steam's entry names Steam itself, not the game
             var install = (k.GetValue("InstallLocation") as string)?.Trim().Trim('"').Replace('/', '\\').TrimEnd('\\') ?? "";
             if (install.Length == 0) install = Path.GetDirectoryName(icon.Length > 0 ? icon : uninstaller) ?? "";
             yield return new InstalledApp(name.Trim(), k.GetValue("DisplayVersion") as string ?? "", k.GetValue("Publisher") as string ?? "", install, icon);

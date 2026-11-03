@@ -21,6 +21,9 @@ public static class Launcher
         public List<int> Imported { get; set; } = []; // registry keys holding the app's data right now
         public List<string> Links { get; set; } = [];
         public List<string> CreatedDirs { get; set; } = [];
+        public string? SteamRecord { get; set; }     // Steam's record of a connected game, on this PC
+        public bool SteamRecordLive { get; set; }    // that record is ours and may hold a newer version number
+        public bool RestartSteam { get; set; }
     }
 
     public static int Run(string root, string[] args)
@@ -48,7 +51,8 @@ public static class Launcher
             {
                 Save(state, session);
                 TakeOver(m, root, state, session);
-                Launch(m, root, args);
+                if (m.SteamAppId is null) Launch(m, root, args);
+                else PlayThroughSteam(m, root, state, session);
             }
             finally
             {
@@ -67,21 +71,10 @@ public static class Launcher
     {
         var appDir = Path.Combine(root, "App");
         foreach (var folder in m.Folders)
-        {
-            var target = Win.Expand(folder.Target);
-            if (Directory.Exists(target))
-            {
-                if (Directory.Exists(target + Aside)) throw new IOException($"{target + Aside} is in the way. Move it somewhere else and try again.");
-                Directory.Move(target, target + Aside);
-            }
-            MakeParents(target, s);
-            s.Links.Add(target);
-            Save(state, s);
-            Win.CreateJunction(target, Path.Combine(root, folder.Source));
-        }
+            LinkFolder(Win.Expand(folder.Target), Path.Combine(root, folder.Source), state, s);
 
         // Best effort: covers apps with their install path written into their own files. Program Files needs admin rights.
-        if (!Directory.Exists(m.InstallPath))
+        if (m.SteamAppId is null && !Directory.Exists(m.InstallPath))
             try
             {
                 MakeParents(m.InstallPath, s);
@@ -110,6 +103,19 @@ public static class Launcher
             s.Imported.Add(i);
             Save(state, s);
         }
+    }
+
+    static void LinkFolder(string target, string source, string state, Session s)
+    {
+        if (Directory.Exists(target))
+        {
+            if (Directory.Exists(target + Aside)) throw new IOException($"{target + Aside} is in the way. Move it somewhere else and try again.");
+            Directory.Move(target, target + Aside);
+        }
+        MakeParents(target, s);
+        s.Links.Add(target);
+        Save(state, s);
+        Win.CreateJunction(target, source);
     }
 
     static void MakeParents(string path, Session s)
@@ -148,8 +154,82 @@ public static class Launcher
         }
     }
 
+    /// <summary>
+    /// Gives Steam the same two things a normal install has, its record of the game and the game's folder, with the folder
+    /// linked to the portable files. Steam only reads records when it starts, and rewrites them when it closes, hence the restarts.
+    /// </summary>
+    static void PlayThroughSteam(Manifest m, string root, string state, Session s)
+    {
+        var exe = Steam.Exe ?? throw new IOException("This game needs Steam, and Steam isn't installed on this PC.");
+        var name = $"appmanifest_{m.SteamAppId}.acf";
+        var libraries = Steam.Libraries(exe);
+        var library = libraries.FirstOrDefault(l => File.Exists(Path.Combine(l, name))) ?? libraries[0];
+        var record = Path.Combine(library, name);
+        var gameDir = Path.Combine(library, "common", m.SteamInstallDir!);
+
+        // A PC with its own copy just plays that one, and none of Steam's files are touched.
+        if (!File.Exists(record) || !Directory.Exists(gameDir) || Win.IsLink(gameDir))
+        {
+            if (Steam.IsRunning(exe))
+            {
+                var answer = MessageBox.Show($"Steam needs to restart so it can find {m.Name}. Restart Steam now?", "Portabilizer", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (answer != MessageBoxResult.Yes) return;
+                s.RestartSteam = true;
+                Save(state, s);
+                Steam.Close(exe);
+            }
+
+            s.SteamRecord = record;
+            Save(state, s);
+            if (File.Exists(record)) File.Move(record, record + Aside);
+            LinkFolder(gameDir, Path.Combine(root, "App"), state, s);
+            File.Copy(Path.Combine(root, "Data", "Steam", name), record);
+            s.SteamRecordLive = true;
+            Save(state, s);
+        }
+
+        Steam.Start(exe, $"steam://rungameid/{m.SteamAppId}");
+        WaitForGame(exe, gameDir, Path.Combine(root, "App"));
+    }
+
+    static void WaitForGame(string exe, string gameDir, string appDir)
+    {
+        // Steam can spend a long while starting or updating first, so there's no time limit on the game appearing.
+        // shortcut: if Steam stays open and the game is never played, the game stays connected until Steam closes, add a timeout if that causes trouble.
+        var clock = Stopwatch.StartNew();
+        var started = false;
+        for (var quiet = 0; quiet < 6;)
+        {
+            Thread.Sleep(1500);
+            var running = Win.AnyRunningFrom(gameDir) || Win.AnyRunningFrom(appDir);
+            started |= running;
+            if (running) quiet = 0;
+            else if (started) quiet++;
+            else if (clock.Elapsed > TimeSpan.FromMinutes(1) && !Steam.IsRunning(exe)) return;
+        }
+    }
+
+    static void ReleaseSteam(string root, string state, Session s)
+    {
+        if (Steam.Exe is { } exe) Steam.Close(exe);
+        var record = s.SteamRecord!;
+        if (s.SteamRecordLive)
+        {
+            // Steam may have updated the game, and its record is what says which version the files now are.
+            if (File.Exists(record)) File.Copy(record, Path.Combine(root, "Data", "Steam", Path.GetFileName(record)), overwrite: true);
+            File.Delete(record);
+            s.SteamRecordLive = false;
+            Save(state, s);
+        }
+        if (File.Exists(record + Aside)) File.Move(record + Aside, record);
+        s.SteamRecord = null;
+        Save(state, s);
+    }
+
     static void Restore(Manifest m, string root, string state, Session s)
     {
+        if (s.SteamRecord is not null) ReleaseSteam(root, state, s);
+
         var appDir = Path.Combine(s.Root, "App");
         foreach (var i in s.Started.OrderDescending().ToList())
         {
@@ -190,6 +270,7 @@ public static class Launcher
         foreach (var dir in Enumerable.Reverse(s.CreatedDirs))
             if (Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
 
+        if (s.RestartSteam && Steam.Exe is { } exe) Steam.Start(exe, "-silent");
         File.Delete(Path.Combine(state, "session.json"));
     }
 

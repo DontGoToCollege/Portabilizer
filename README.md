@@ -10,7 +10,7 @@ This is an early version. It already works on simple apps, but it can't move eve
 2. Run it and pick an app from the list.
 3. Read the verdict:
    - **Should work well:** nothing was found that would get in the way.
-   - **Should work, with limits:** it explains what to expect, such as needing Steam on the other PC.
+   - **Should work, with limits:** it explains what to expect, such as needing administrator permission.
    - **Can't be made portable:** it explains why, and the button is turned off.
 4. Choose where to save it and click **Make portable**.
 5. Copy the folder anywhere and run the program inside it, named like `Audacity Portable.exe`.
@@ -33,11 +33,23 @@ One thing does stay behind: about 30 MB of the starter's own support files in th
 
 If the PC crashes or loses power while the app is open, starting the portable app again on that PC finishes the tidying up. If the portable drive is unplugged while the app is running, plug it back in and do the same.
 
+## Steam games
+
+A portable Steam game still runs through Steam, so Steam must be installed and signed in to the account that owns the game. What Portabilizer saves you is the download. The portable file connects its game files to Steam, starts the game, and disconnects them when you finish, keeping any update Steam applied.
+
+- Steam only looks for games when it starts, so if it's already open you'll be asked to let it restart.
+- Steam closes when you finish playing, and reopens if it was open before.
+- If the PC already has the game installed, Steam plays its own copy.
+- Your saves and settings come with the game, but Steam Workshop mods don't.
+- Don't choose Uninstall in Steam while the game is connected, as that could delete the portable copy.
+
+This is new and hasn't been proven with every game.
+
 ## What it can't do yet
 
 - **Apps that need a driver**, such as anti-cheat, dongles and VPNs. These must be installed on each PC.
 - **Apps that rely on a background Windows service.** The service isn't carried over, and many updaters work this way.
-- **Licences and accounts.** Portabilizer moves apps but never gets around licensing. Adobe apps still need Adobe's sign-in, and Steam games still need Steam.
+- **Licences and accounts.** Portabilizer moves apps but never gets around licensing. Adobe apps still need Adobe's sign-in.
 - **Saved sign-ins.** Windows ties many of these to one PC, so you may need to sign in again.
 - **File associations, right-click menus and Start menu entries.** These aren't set up on the other PC.
 - **Microsoft Store apps.** They aren't in the list.

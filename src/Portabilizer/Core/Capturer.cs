@@ -37,7 +37,7 @@ public static partial class Capturer
             var appDir = Path.Combine(outDir, "App");
             CopyTree(app.InstallPath, appDir, Copied);
             var relative = Path.GetRelativePath(app.InstallPath, mainExe);
-            Runtimes.CopyInto(appDir, Path.GetDirectoryName(Path.Combine(appDir, relative))!);
+            if (plan.Steam is null) Runtimes.CopyInto(appDir, Path.GetDirectoryName(Path.Combine(appDir, relative))!); // Steam sets up its own games' runtimes
 
             var folders = new List<FolderLink>();
             if (includeData)
@@ -53,7 +53,8 @@ public static partial class Capturer
             if (includeData)
             {
                 Directory.CreateDirectory(Path.Combine(outDir, "Data", "Registry"));
-                foreach (var key in plan.Keys)
+                // Steam recreates a game's PC-wide keys itself, and must not be started with administrator rights.
+                foreach (var key in plan.Keys.Where(k => plan.Steam is null || k.StartsWith("HKCU")))
                 {
                     var file = Path.Combine("Data", "Registry", $"{keys.Count}.reg");
                     var full = Path.Combine(outDir, file);
@@ -63,12 +64,18 @@ public static partial class Capturer
                 }
             }
 
+            if (plan.Steam is { } game)
+            {
+                Directory.CreateDirectory(Path.Combine(outDir, "Data", "Steam"));
+                File.Copy(game.ManifestPath, Path.Combine(outDir, "Data", "Steam", Path.GetFileName(game.ManifestPath)));
+            }
+
             var exeName = FileSafe().Replace($"{CleanName(app.Name)} Portable", "") + ".exe";
             File.Copy(Environment.ProcessPath!, Path.Combine(outDir, exeName));
             var slug = Slug().Replace(app.Name, "-").Trim('-');
             var id = $"{slug[..Math.Min(slug.Length, 32)]}-{Guid.NewGuid():N}";
             new Manifest(id, app.Name, app.Version, app.Publisher, Path.Combine("App", relative), app.InstallPath,
-                keys.Any(k => k.Key.StartsWith("HKLM")), folders, keys).Save(outDir);
+                keys.Any(k => k.Key.StartsWith("HKLM")), folders, keys, plan.Steam?.AppId, plan.Steam?.InstallDir).Save(outDir);
         }
         catch
         {

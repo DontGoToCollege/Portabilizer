@@ -9,7 +9,8 @@ public sealed record KeyFile(string Key, string File);
 public sealed record Manifest(
     string Id, string Name, string Version, string Publisher,
     string MainExe, string InstallPath, bool NeedsAdmin,
-    List<FolderLink> Folders, List<KeyFile> Registry)
+    List<FolderLink> Folders, List<KeyFile> Registry,
+    string? SteamAppId = null, string? SteamInstallDir = null)
 {
     public const string FileName = "portable.json";
     static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
