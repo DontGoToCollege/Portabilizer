@@ -1,0 +1,65 @@
+<Window x:Class="Portabilizer.LibraryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Portabilizer library" Width="760" Height="720" MinWidth="620" MinHeight="480"
+        Icon="Assets/Portabilizer.ico" WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="20">
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <ProgressBar x:Name="Busy" Height="4" IsIndeterminate="True" Visibility="Collapsed" Margin="0,0,0,6" />
+            <TextBlock x:Name="Status" TextWrapping="Wrap" />
+        </StackPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="Body">
+                <TextBlock Text="Library" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock TextWrapping="Wrap" Margin="0,6,0,4"
+                           Text="Apps often need extra pieces, such as .NET or Visual C++ files, before they'll run. Portabilizer keeps its own copies here and puts them in each portable app, so the other PC doesn't need them installed." />
+                <Border CornerRadius="6" Padding="12,8" Margin="0,6,0,6" Background="#332E9E5B">
+                    <TextBlock TextWrapping="Wrap"
+                               Text="Recommended: keep the first choice in each section, download the .NET versions you expect to need (or all of them), and add this PC's Visual C++ and DirectX files. Portabilizer then has everything it needs, even offline." />
+                </Border>
+                <TextBlock x:Name="Location" FontSize="12" Opacity="0.7" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                <TextBlock Text=".NET" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,6" />
+                <RadioButton x:Name="NetDownload" GroupName="Net" Checked="Setting_Changed" Margin="0,2"
+                             Content="Use the library, and download anything missing from Microsoft when making a portable app (recommended)" />
+                <RadioButton x:Name="NetLibraryPc" GroupName="Net" Checked="Setting_Changed" Margin="0,2"
+                             Content="Use the library, then this PC. Never download" />
+                <RadioButton x:Name="NetPc" GroupName="Net" Checked="Setting_Changed" Margin="0,2"
+                             Content="Only use the .NET installed on this PC" />
+                <TextBlock FontSize="12" Opacity="0.7" TextWrapping="Wrap" Margin="0,6,0,8"
+                           Text="Downloads come straight from Microsoft, and each one is checked against Microsoft's published fingerprint before it's used. Each version is about 70 MB." />
+                <CheckBox x:Name="Include32" Content="Also download 32-bit versions, for older apps" Checked="Setting_Changed" Unchecked="Setting_Changed" Margin="0,0,0,8" />
+                <WrapPanel Margin="0,0,0,8">
+                    <Button Content="Download every version" Padding="12,6" Margin="0,0,8,8" Click="DownloadAll_Click" />
+                    <Button Content="Add this PC's .NET" Padding="12,6" Margin="0,0,8,8" Click="AddPcDotNet_Click" />
+                </WrapPanel>
+                <TextBlock x:Name="Offline" TextWrapping="Wrap" Visibility="Collapsed" Margin="0,0,0,8" />
+                <ItemsControl x:Name="Channels">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel Margin="0,4">
+                                <Button DockPanel.Dock="Right" Content="Download" Tag="{Binding Version}" Padding="12,4" Click="Download_Click" />
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Label}" />
+                                    <TextBlock Text="{Binding Status}" FontSize="12" Opacity="0.7" />
+                                </StackPanel>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Visual C++ and DirectX" FontSize="16" FontWeight="SemiBold" Margin="0,18,0,6" />
+                <RadioButton x:Name="FilesLibrary" GroupName="Files" Checked="Setting_Changed" Margin="0,2"
+                             Content="Use the library, then this PC (recommended)" />
+                <RadioButton x:Name="FilesPc" GroupName="Files" Checked="Setting_Changed" Margin="0,2"
+                             Content="Only use the files on this PC" />
+                <TextBlock FontSize="12" Opacity="0.7" TextWrapping="Wrap" Margin="0,6,0,8"
+                           Text="Microsoft only offers these as installers, not as files Portabilizer can download on its own. Adding this PC's copies keeps them in the library for good." />
+                <DockPanel Margin="0,0,0,8">
+                    <Button DockPanel.Dock="Right" Content="Add this PC's files" Padding="12,6" Click="AddPcFiles_Click" />
+                    <TextBlock x:Name="FilesStatus" VerticalAlignment="Center" />
+                </DockPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

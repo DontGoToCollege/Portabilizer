@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.8
+
+- New **Library**: Portabilizer keeps its own copies of .NET, Visual C++ and DirectX files in a `Portabilizer-Library` folder beside it, so portable apps don't depend on what the PC happens to have.
+- .NET downloads come straight from Microsoft and are checked against Microsoft's fingerprint. Download versions ahead of time, let Portabilizer fetch what's missing as needed (the default), or use only this PC's copies.
+- .NET's licence notices now go into each portable app with it.
+
 ## 0.1.7
 
 - Apps built on .NET bring their own copy of it, taken from this PC, so the other PC doesn't need it installed. Steam games are the exception, because Steam starts them itself.

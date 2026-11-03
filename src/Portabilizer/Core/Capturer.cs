@@ -44,8 +44,17 @@ public static partial class Capturer
             CopyTree(app.InstallPath, appDir, Copied);
             var relative = Path.GetRelativePath(app.InstallPath, mainExe);
             if (plan.Steam is null) Runtimes.CopyInto(appDir, Path.GetDirectoryName(Path.Combine(appDir, relative))!); // Steam sets up its own games' runtimes
-            foreach (var (from, to) in DotNet.Folders(plan.DotNetCopies))
-                CopyTree(from, Path.Combine(outDir, "Data", "DotNet", to), Copied);
+
+            var frameworks = new List<DotNet.Framework>();
+            foreach (var need in plan.DotNetNeeds)
+                frameworks.AddRange(Library.GatherDotNet(need, status => progress.Report((0, status)))
+                    ?? throw new IOException($"Couldn't get {need.Label} to include. Check the Library settings, or try again when online."));
+            foreach (var (from, to) in DotNet.Folders(frameworks.Distinct()))
+            {
+                var target = Path.Combine(outDir, "Data", "DotNet", to);
+                if (Directory.Exists(from)) CopyTree(from, target, Copied);
+                else File.Copy(from, target, overwrite: true); // licence notices, which sit beside the folders
+            }
 
             var folders = new List<FolderLink>();
             if (includeData)
@@ -102,7 +111,7 @@ public static partial class Capturer
 
     static string CleanName(string name) => Bracketed().Replace(name, "").Trim();
 
-    static void CopyTree(string from, string to, Action<long, string> copied)
+    internal static void CopyTree(string from, string to, Action<long, string> copied)
     {
         var pending = new Stack<(DirectoryInfo From, string To)>();
         pending.Push((new DirectoryInfo(from), to));

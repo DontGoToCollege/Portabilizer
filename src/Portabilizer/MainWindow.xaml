@@ -12,7 +12,11 @@
         </Grid.ColumnDefinitions>
 
         <DockPanel>
-            <TextBlock DockPanel.Dock="Top" Text="Pick an app" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,10" />
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                <Button x:Name="LibraryButton" DockPanel.Dock="Right" Content="Library" Padding="12,4" Click="Library_Click"
+                        ToolTip="The .NET, Visual C++ and DirectX files Portabilizer keeps for portable apps" />
+                <TextBlock Text="Pick an app" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </DockPanel>
             <TextBox x:Name="Search" DockPanel.Dock="Top" Margin="0,0,0,10" TextChanged="Search_TextChanged"
                      ToolTip="Type to filter the list" AutomationProperties.Name="Search apps" />
             <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">

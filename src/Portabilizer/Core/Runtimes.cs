@@ -30,11 +30,13 @@ internal static partial class Runtimes
                 _ => null,
             };
             if (system is null) continue;
+            // Portabilizer's own library first, so a package doesn't depend on what this PC happens to have.
+            string[] sources = Library.Settings.Files == FilesSource.ThisPcOnly ? [system] : [Library.FilesDir(machine == Machine.I386), system];
             var dir = image.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? Path.GetDirectoryName(image)! : mainExeDir;
             foreach (var dll in imports.Where(d => Redistributable().IsMatch(d) && !present.Contains(d)))
             {
-                var source = Path.Combine(system, dll);
-                if (!File.Exists(source)) continue;
+                var source = sources.Select(s => Path.Combine(s, dll)).FirstOrDefault(File.Exists);
+                if (source is null) continue;
                 var copy = Path.Combine(dir, dll);
                 File.Copy(source, copy);
                 present.Add(dll);
@@ -44,6 +46,8 @@ internal static partial class Runtimes
     }
 
     public static Machine MachineOf(string file) => Read(file).Machine;
+
+    public static bool IsRedistributable(string fileName) => Redistributable().IsMatch(fileName);
 
     static (Machine Machine, List<string> Imports) Read(string file)
     {

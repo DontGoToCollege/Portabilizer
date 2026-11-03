@@ -24,15 +24,28 @@ public partial class MainWindow : Window
         InitializeComponent();
         Title = $"Portabilizer {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)}";
         SaveTo.Text =Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Portable Apps");
-        Loaded += async (_, _) =>
-        {
-            _rows = (await Task.Run(InstalledApps.Scan)).Select(a => new AppRow(a)).ToList();
-            _view = CollectionViewSource.GetDefaultView(_rows);
-            _view.Filter = Shows;
-            Apps.ItemsSource = _view;
-            UpdateCounts();
-            await CheckAll();
-        };
+        Loaded += async (_, _) => await Show((await Task.Run(InstalledApps.Scan)).Select(a => new AppRow(a)).ToList());
+    }
+
+    async Task Show(List<AppRow> rows)
+    {
+        _rows = rows;
+        _view = CollectionViewSource.GetDefaultView(_rows);
+        _view.Filter = Shows;
+        Apps.ItemsSource = _view;
+        UpdateCounts();
+        await CheckAll();
+    }
+
+    async void Library_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new LibraryWindow { Owner = this };
+        window.ShowDialog();
+        if (!window.Changed) return;
+        // What the library holds changes where .NET comes from, so every app is checked again.
+        Details.Visibility = Visibility.Collapsed;
+        Hint.Visibility = Visibility.Visible;
+        await Show(_rows.Select(r => new AppRow(r.App)).ToList());
     }
 
     public static string TextFor(Level verdict) => verdict switch
@@ -59,7 +72,8 @@ public partial class MainWindow : Window
     /// <summary>Checks every app in the background so the filters can sort them. A few at a time, since big games take a while to measure.</summary>
     async Task CheckAll()
     {
-        await Parallel.ForEachAsync(_rows, new ParallelOptions { MaxDegreeOfParallelism = 3 }, async (row, _) =>
+        var rows = _rows;
+        await Parallel.ForEachAsync(rows, new ParallelOptions { MaxDegreeOfParallelism = 3 }, async (row, _) =>
         {
             var plan = await row.GetPlan();
             await Dispatcher.InvokeAsync(() =>

@@ -35,6 +35,17 @@ One thing does stay behind: about 30 MB of the starter's own support files in th
 
 If the PC crashes or loses power while the app is open, starting the portable app again on that PC finishes the tidying up. If the portable drive is unplugged while the app is running, plug it back in and do the same.
 
+## The library
+
+Apps often need extra pieces before they'll run, such as .NET or Visual C++ files. Portabilizer keeps its own copies in a `Portabilizer-Library` folder beside it, and puts the ones each app needs into its portable folder. The other PC then needs nothing installed.
+
+Click **Library** to choose where these pieces come from:
+
+- **.NET:** by default Portabilizer uses its library and downloads anything missing from Microsoft when you make a portable app. Every download is checked against Microsoft's published fingerprint. You can also download versions ahead of time, add the versions installed on this PC, or turn downloads off.
+- **Visual C++ and DirectX:** Microsoft only offers these as installers, so Portabilizer can't download them. Click **Add this PC's files** to keep this PC's copies in the library for good.
+
+For .NET 3.1 and 5.0, Microsoft offers the part desktop apps need only as an installer. Those come from this PC if it has them.
+
 ## Steam games
 
 A portable Steam game still runs through Steam, so Steam must be installed and signed in to the account that owns the game. What Portabilizer saves you is the download.

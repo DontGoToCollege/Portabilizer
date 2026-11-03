@@ -17,7 +17,7 @@ public sealed class Plan
     public List<string> Exes { get; } = [];
     public long AppBytes { get; set; }
     public SteamGame? Steam { get; set; }
-    internal List<DotNet.Framework> DotNetCopies { get; } = [];
+    internal List<DotNet.Need> DotNetNeeds { get; } = [];
     public long RuntimeBytes { get; set; }
     public List<DataFolder> Folders { get; } = [];
     public List<string> Keys { get; } = [];
@@ -123,28 +123,43 @@ public static partial class Inspector
         return runtimeConfigs;
     }
 
-    /// <summary>Apps built on shared .NET get a copy of it from this PC. Steam starts its own games, so it can't be handed one.</summary>
+    /// <summary>
+    /// Apps built on shared .NET get their own copy, from Portabilizer's library, a download, or this PC, as the library
+    /// settings say. Nothing is downloaded here; that waits until the app is made portable. Steam starts its own games, so
+    /// it can't be handed one.
+    /// </summary>
     static void CheckDotNet(Plan plan, List<string> runtimeConfigs)
     {
+        var mode = Library.Settings.DotNet;
+        var ready = new List<DotNet.Framework>();
         foreach (var config in runtimeConfigs)
         {
-            var needs = DotNet.Needs(config);
-            if (needs.Count == 0) continue;
-            var label = $".NET {needs[0].Version.ToString(2)}";
+            var frameworks = DotNet.Needs(config);
+            if (frameworks.Count == 0) continue;
             var exe = config[..^".runtimeconfig.json".Length] + ".exe";
             var x86 = File.Exists(exe) && Runtimes.MachineOf(exe) == System.Reflection.PortableExecutable.Machine.I386;
-            var found = plan.Steam is null ? DotNet.Resolve(needs, x86) : null;
-            if (found is null)
+            var need = new DotNet.Need(frameworks, x86, $".NET {frameworks[0].Version.ToString(2)}");
+            if (plan.Steam is not null)
             {
-                AddOnce(plan, new(Level.Caution, plan.Steam is null
-                    ? $"Needs {label} installed on each PC. This PC doesn't have it either, so it can't be included."
-                    : $"Needs {label} installed on each PC."));
+                AddOnce(plan, new(Level.Caution, $"Needs {need.Label} installed on each PC."));
                 continue;
             }
-            foreach (var f in found.Where(f => !plan.DotNetCopies.Contains(f))) plan.DotNetCopies.Add(f);
-            AddOnce(plan, new(Level.Good, $"Brings its own copy of {label}, so the other PC doesn't need it installed."));
+            var inLibrary = mode == DotNetSource.ThisPcOnly ? null : DotNet.Resolve(need, [Library.DotNetRoot(x86)]);
+            var onPc = DotNet.Resolve(need, [DotNet.PcRoot(x86)]);
+            var from = inLibrary is not null ? "from Portabilizer's library"
+                : mode == DotNetSource.LibraryThenDownload ? "downloaded from Microsoft when you make it portable"
+                : onPc is not null ? "from this PC"
+                : null;
+            if (from is null)
+            {
+                AddOnce(plan, new(Level.Caution, $"Needs {need.Label} installed on each PC. Neither Portabilizer's library nor this PC has it, so it can't be included."));
+                continue;
+            }
+            plan.DotNetNeeds.Add(need);
+            ready.AddRange(inLibrary ?? onPc ?? []);
+            AddOnce(plan, new(Level.Good, $"Brings its own copy of {need.Label}, {from}, so the other PC doesn't need it installed."));
         }
-        plan.RuntimeBytes = DotNet.Folders(plan.DotNetCopies).Sum(f => SizeOf(f.From));
+        plan.RuntimeBytes = DotNet.Folders(ready.Distinct()).Sum(f => File.Exists(f.From) ? new FileInfo(f.From).Length : SizeOf(f.From));
     }
 
     static string Letters(string text) => string.Concat(text.Where(char.IsLetterOrDigit)).ToLowerInvariant();

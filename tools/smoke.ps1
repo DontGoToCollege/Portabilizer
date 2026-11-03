@@ -14,6 +14,7 @@ function Check($label, $ok) { if ($ok) { $script:pass++; "  ok   $label" } else 
 
 function Cleanup {
     Remove-Item Env:\PORTABILIZER_STEAM_EXE -ErrorAction SilentlyContinue
+    Remove-Item Env:\PORTABILIZER_LIBRARY -ErrorAction SilentlyContinue
     foreach ($k in $uninstall, $steamUninstall, $dotnetUninstall, $vendor) { if (Test-Path $k) { Remove-Item $k -Recurse -Force } }
     foreach ($d in $data, $saves) {
         if (Test-Path "$d.portabilizer-aside") { Remove-Item "$d.portabilizer-aside" -Recurse -Force }
@@ -49,6 +50,7 @@ function Disconnect($exe) {
 
 Cleanup
 $env:PORTABILIZER_STEAM_EXE = 'none' # also keeps message boxes off the screen during the test
+$env:PORTABILIZER_LIBRARY = "$Work\library" # a fresh, empty library for this run
 if (Test-Path $Work) { Remove-Item $Work -Recurse -Force }
 $inst = "$Work\install\SmokeApp"
 New-Item -ItemType Directory -Force $inst, $data | Out-Null
@@ -209,14 +211,28 @@ New-Item $dotnetUninstall -Force | Out-Null
 Set-ItemProperty $dotnetUninstall DisplayName 'DotNet Probe'
 Set-ItemProperty $dotnetUninstall Publisher 'SmokePub Inc'
 Set-ItemProperty $dotnetUninstall InstallLocation "$Work\probe-app"
+# The library starts empty and the default setting downloads what's missing, so this fetches .NET from Microsoft.
 $p = Start-Process $Exe -ArgumentList "--capture `"DotNet Probe`" `"$Work\dnout`"" -PassThru -Wait
 Check "capture exit 0 (got $($p.ExitCode))" ($p.ExitCode -eq 0)
+$libraryNet = "$Work\library\dotnet\x64\shared\Microsoft.NETCore.App"
+Check ".NET downloaded into the library" (@(Get-ChildItem $libraryNet -Directory -ErrorAction SilentlyContinue).Count -eq 1)
+Check "no half-finished download left" (@(Get-ChildItem "$Work\library" -Directory -Filter '.download-*' -ErrorAction SilentlyContinue).Count -eq 0)
 Check ".NET copied into the package" (@(Get-ChildItem "$Work\dnout\Data\DotNet\x64\shared\Microsoft.NETCore.App" -Directory -ErrorAction SilentlyContinue).Count -eq 1)
 Check ".NET host copied into the package" (@(Get-ChildItem "$Work\dnout\Data\DotNet\x64\host\fxr" -Directory -ErrorAction SilentlyContinue).Count -eq 1)
+Check ".NET licence notice copied into the package" (Test-Path "$Work\dnout\Data\DotNet\x64\LICENSE.txt")
 $launcherDn = (Get-ChildItem "$Work\dnout" -Filter '*Portable.exe').FullName
 Start-Process $launcherDn -ArgumentList "`"$Work\ran-on.txt`"" -Wait
 $ranOn = if (Test-Path "$Work\ran-on.txt") { Get-Content "$Work\ran-on.txt" -Raw } else { 'nothing written' }
 Check "app ran on the package's .NET ($ranOn)" ($ranOn.StartsWith("$Work\dnout\Data\DotNet\x64\shared\"))
+
+"== .NET from this PC only"
+'{ "DotNet": 2, "Files": 0, "Include32Bit": false }' | Set-Content "$Work\library\settings.json" -Encoding ascii
+$libraryBefore = @(Get-ChildItem $libraryNet -Directory).Count
+$p = Start-Process $Exe -ArgumentList "--capture `"DotNet Probe`" `"$Work\dnout2`"" -PassThru -Wait
+Check "capture exit 0 (got $($p.ExitCode))" ($p.ExitCode -eq 0)
+Check ".NET copied from this PC" (@(Get-ChildItem "$Work\dnout2\Data\DotNet\x64\shared\Microsoft.NETCore.App" -Directory -ErrorAction SilentlyContinue).Count -eq 1)
+Check "library left alone" (@(Get-ChildItem $libraryNet -Directory).Count -eq $libraryBefore)
+Remove-Item "$Work\library\settings.json"
 
 "== Steam game: capture"
 # A fake Steam: a copy of ping that exits at once, under a name that can't match the real client.

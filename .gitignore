@@ -3,6 +3,7 @@
 Versions/
 dist/
 publish/
+Portabilizer-Library/
 
 # Build leftovers
 bin/

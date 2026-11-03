@@ -3,16 +3,18 @@ using System.Text.Json;
 namespace Portabilizer.Core;
 
 /// <summary>
-/// Finds the shared .NET runtime an app needs on this PC, so a copy can travel in the package.
+/// Finds the shared .NET runtime an app needs, in Portabilizer's library or on this PC, so a copy can travel in the package.
 /// .NET is MIT-licensed and free to redistribute; the launcher points the app at the copy with DOTNET_ROOT.
 /// </summary>
 internal static class DotNet
 {
-    public sealed record Framework(string Name, string Version, bool X86);
+    public sealed record Framework(string Name, string Version, bool X86, string Root);
+    public sealed record Need(List<(string Name, Version Version)> Frameworks, bool X86, string Label);
 
-    const string BaseName = "Microsoft.NETCore.App";
+    public const string BaseName = "Microsoft.NETCore.App";
+    static readonly string[] Notices = ["LICENSE.txt", "ThirdPartyNotices.txt"];
 
-    static string Root(bool x86) => Path.Combine(Environment.GetFolderPath(
+    public static string PcRoot(bool x86) => Path.Combine(Environment.GetFolderPath(
         x86 ? Environment.SpecialFolder.ProgramFilesX86 : Environment.SpecialFolder.ProgramFiles), "dotnet");
 
     /// <summary>The shared frameworks a runtimeconfig asks for, or none when the app carries its own.</summary>
@@ -34,47 +36,59 @@ internal static class DotNet
     }
 
     /// <summary>
-    /// The installed versions the app would run on, picked the way .NET rolls forward by default: the newest patch of the
-    /// same minor version, or else the lowest newer minor. Null when this PC lacks one of them.
+    /// The versions the app would run on, picked the way .NET rolls forward by default: the newest patch of the same minor
+    /// version, or else the lowest newer minor. Earlier roots win a tie. Null when the roots lack one of them.
     /// </summary>
-    public static List<Framework>? Resolve(IEnumerable<(string Name, Version Version)> needs, bool x86)
+    public static List<Framework>? Resolve(Need need, IReadOnlyList<string> roots)
     {
         var picked = new List<Framework>();
-        foreach (var (name, want) in needs)
+        foreach (var (name, want) in need.Frameworks)
         {
-            if (Best(name, want, x86) is not { } version) return null;
-            picked.Add(new(name, version, x86));
+            if (Best(name, want, roots) is not { } found) return null;
+            picked.Add(new(name, found.Version, need.X86, found.Root));
             // Desktop and web frameworks sit on the base runtime of the same version.
             if (name == BaseName) continue;
-            if (!Directory.Exists(Path.Combine(Root(x86), "shared", BaseName, version))) return null;
-            picked.Add(new(BaseName, version, x86));
+            var baseRoot = roots.FirstOrDefault(r => Directory.Exists(Path.Combine(r, "shared", BaseName, found.Version)));
+            if (baseRoot is null) return null;
+            picked.Add(new(BaseName, found.Version, need.X86, baseRoot));
         }
         return picked.Distinct().ToList();
     }
 
-    static string? Best(string name, Version want, bool x86)
+    static (string Version, string Root)? Best(string name, Version want, IReadOnlyList<string> roots)
     {
-        var dir = Path.Combine(Root(x86), "shared", name);
-        if (!Directory.Exists(dir)) return null;
-        var have = Directory.GetDirectories(dir)
-            .Select(d => Version.TryParse(Path.GetFileName(d), out var v) ? v : null).OfType<Version>()
-            .Where(v => v.Major == want.Major && v >= want).ToList();
+        var have = roots
+            .SelectMany(root => Directory.Exists(Path.Combine(root, "shared", name))
+                ? Directory.GetDirectories(Path.Combine(root, "shared", name)).Select(d => (Name: Path.GetFileName(d), Root: root))
+                : [])
+            .Select(d => (Version: Version.TryParse(d.Name, out var v) ? v : null, d.Root))
+            .Where(d => d.Version is { } v && v.Major == want.Major && v >= want)
+            .ToList();
         if (have.Count == 0) return null;
-        var minor = have.Any(v => v.Minor == want.Minor) ? want.Minor : have.Min(v => v.Minor);
-        return have.Where(v => v.Minor == minor).Max()!.ToString();
+        var minor = have.Any(d => d.Version!.Minor == want.Minor) ? want.Minor : have.Min(d => d.Version!.Minor);
+        var best = have.Where(d => d.Version!.Minor == minor).Max(d => d.Version)!;
+        return (best.ToString(), have.First(d => d.Version == best).Root);
     }
 
-    /// <summary>What to copy, as (folder on this PC, path inside the package's Data\DotNet). The newest host reads every version.</summary>
+    /// <summary>
+    /// What to copy, as (file or folder, path inside the package's Data\DotNet): the frameworks, the newest host, which reads
+    /// every version, and .NET's licence notices, which must travel with it.
+    /// </summary>
     public static IEnumerable<(string From, string To)> Folders(IEnumerable<Framework> frameworks)
     {
         foreach (var group in frameworks.GroupBy(f => f.X86))
         {
-            var root = Root(group.Key);
             var arch = group.Key ? "x86" : "x64";
-            foreach (var f in group) yield return (Path.Combine(root, "shared", f.Name, f.Version), Path.Combine(arch, "shared", f.Name, f.Version));
-            var host = Directory.GetDirectories(Path.Combine(root, "host", "fxr"))
+            foreach (var f in group) yield return (Path.Combine(f.Root, "shared", f.Name, f.Version), Path.Combine(arch, "shared", f.Name, f.Version));
+            var roots = group.Select(f => f.Root).Distinct().ToList();
+            var host = roots
+                .Where(r => Directory.Exists(Path.Combine(r, "host", "fxr")))
+                .SelectMany(r => Directory.GetDirectories(Path.Combine(r, "host", "fxr")))
                 .OrderByDescending(d => Version.TryParse(Path.GetFileName(d), out var v) ? v : new Version()).First();
             yield return (host, Path.Combine(arch, "host", "fxr", Path.GetFileName(host)));
+            foreach (var notice in Notices)
+                if (roots.Select(r => Path.Combine(r, notice)).FirstOrDefault(File.Exists) is { } file)
+                    yield return (file, Path.Combine(arch, notice));
         }
     }
 }
