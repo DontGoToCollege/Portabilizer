@@ -218,8 +218,8 @@ public static partial class Inspector
                 plan.Findings.Add(new(Level.Blocked, "Steam hasn't finished installing or updating this game, so it can't be copied yet."));
             else
             {
-                plan.Findings.Add(new(Level.Caution, "Steam must be installed on each PC and signed in to the account that owns this game. Steam should play the portable files instead of downloading the game, and restarts around each session."));
-                plan.Findings.Add(new(Level.Caution, "While the game is connected, don't choose Uninstall in Steam, as that could delete the portable copy."));
+                plan.Findings.Add(new(Level.Caution, "Steam must be installed on each PC and signed in to the account that owns this game. Run the portable file once on each PC, and Steam restarts once. After that you can just press Play in Steam, with no download."));
+                plan.Findings.Add(new(Level.Caution, "The game stays connected to that PC's Steam until you run Disconnect from this PC. Do that before deleting the portable folder, and don't choose Uninstall in Steam while connected, as that could delete the portable copy."));
             }
         }
         if (path.Contains(@"\Epic Games\", StringComparison.OrdinalIgnoreCase))

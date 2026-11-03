@@ -6,6 +6,7 @@ $steamUninstall = "$uninstall-Steam"
 $vendor = 'HKCU:\Software\SmokePub'
 $key = "$vendor\Smoke App"
 $data = "$env:APPDATA\Smoke App"
+$saves = "$env:APPDATA\Fake Game"
 $state = "$env:LOCALAPPDATA\Portabilizer"
 $pass = 0; $fail = 0
 function Check($label, $ok) { if ($ok) { $script:pass++; "  ok   $label" } else { $script:fail++; "  FAIL $label" } }
@@ -13,9 +14,11 @@ function Check($label, $ok) { if ($ok) { $script:pass++; "  ok   $label" } else 
 function Cleanup {
     Remove-Item Env:\PORTABILIZER_STEAM_EXE -ErrorAction SilentlyContinue
     foreach ($k in $uninstall, $steamUninstall, $vendor) { if (Test-Path $k) { Remove-Item $k -Recurse -Force } }
-    if (Test-Path "$data.portabilizer-aside") { Remove-Item "$data.portabilizer-aside" -Recurse -Force }
-    if (Test-Path $data) {
-        if ((Get-Item $data).Attributes -band [IO.FileAttributes]::ReparsePoint) { (Get-Item $data).Delete() } else { Remove-Item $data -Recurse -Force }
+    foreach ($d in $data, $saves) {
+        if (Test-Path "$d.portabilizer-aside") { Remove-Item "$d.portabilizer-aside" -Recurse -Force }
+        if (Test-Path $d) {
+            if ((Get-Item $d).Attributes -band [IO.FileAttributes]::ReparsePoint) { (Get-Item $d).Delete() } else { Remove-Item $d -Recurse -Force }
+        }
     }
     if (Test-Path $state) { Get-ChildItem $state -Directory | Where-Object Name -match '^(Smoke|Fake)-' | Remove-Item -Recurse -Force }
     # .NET unpacks each package's support files here, named after its exe.
@@ -30,13 +33,21 @@ function WaitFor($condition) {
     $false
 }
 
-# Plays the fake game for a few seconds, then waits for the launcher to finish tidying up.
-function PlayFakeGame($exe) {
-    Start-Process $exe -ArgumentList '-n 5 127.0.0.1' -WindowStyle Hidden
-    Wait-Process -Name 'Fake Game Portable' -Timeout 60 -ErrorAction SilentlyContinue
+# A portable Steam game connects, hands over to Steam and exits. A question box would stop it finishing, so that counts as failing.
+function RunPackage($exe) {
+    $p = Start-Process $exe -PassThru
+    if ($p.WaitForExit(20000)) { return $true }
+    Stop-Process $p -Force
+    $false
+}
+
+function Disconnect($exe) {
+    $p = Start-Process $exe -ArgumentList '--disconnect' -PassThru
+    $p.WaitForExit(20000)
 }
 
 Cleanup
+$env:PORTABILIZER_STEAM_EXE = 'none' # also keeps message boxes off the screen during the test
 if (Test-Path $Work) { Remove-Item $Work -Recurse -Force }
 $inst = "$Work\install\SmokeApp"
 New-Item -ItemType Directory -Force $inst, $data | Out-Null
@@ -127,6 +138,30 @@ Check "next launch: host file restored" ((Get-Content "$data\settings.txt" -Raw)
 Check "next launch: host registry restored" ((Get-ItemProperty $key).Greeting -eq 'HOST-REG')
 Check "next launch: no aside folder" (-not (Test-Path "$data.portabilizer-aside"))
 
+"== app hands over to a copy of itself outside the package"
+# Discord did this: the launcher tidied up while a copy it wasn't watching still used the settings, which scrambled them.
+$twin = "$Work\install\gone\SmokeApp.exe"
+'@start "" /b "%~1" /c ping -n 9 127.0.0.1 > nul' | Set-Content "$Work\handoff.cmd" -Encoding ascii
+$session = Start-Process $launcher -ArgumentList "/c `"$Work\handoff.cmd`" `"$twin`"" -PassThru
+Start-Sleep -Seconds 5
+Check "first program gone" (@(Get-CimInstance Win32_Process -Filter "Name='SmokeApp.exe'" | Where-Object ExecutablePath -like "$Work\out\*").Count -eq 0)
+Check "other copy still running" (@(Get-Process SmokeApp -ErrorAction SilentlyContinue).Count -gt 0)
+Check "settings stay connected for it" (IsLink $data)
+Check "launcher still watching" (-not $session.HasExited)
+Check "tidied up once it closed" ($session.WaitForExit(30000))
+Check "host file restored after handover" ((Get-Content "$data\settings.txt" -Raw) -match '^HOST-FILE\s*$')
+Check "no aside folder after handover" (-not (Test-Path "$data.portabilizer-aside"))
+
+"== app already open on this PC"
+$open = Start-Process $twin -ArgumentList '/c ping -n 30 127.0.0.1 > nul' -WindowStyle Hidden -PassThru
+Start-Sleep -Seconds 1
+$p = Start-Process $launcher -ArgumentList "/c `"$Work\probe.cmd`"" -PassThru -Wait
+Check "refuses to start (exit $($p.ExitCode))" ($p.ExitCode -eq 1)
+Check "nothing was swapped" ((-not (IsLink $data)) -and ((Get-Content "$data\settings.txt" -Raw) -match '^HOST-FILE\s*$'))
+Stop-Process $open -Force
+Get-CimInstance Win32_Process -Filter "Name='PING.EXE'" | Where-Object CommandLine -match '-n (9|30) ' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Start-Sleep -Seconds 1
+
 "== package moved to a path with spaces"
 Remove-Item $vendor -Recurse -Force; Remove-Item $data -Recurse -Force
 Move-Item "$Work\out" "$Work\moved here"
@@ -146,6 +181,8 @@ New-Item -ItemType Directory -Force $game | Out-Null
 Copy-Item C:\Windows\System32\PING.EXE "$fake\fakesteam.exe"
 Copy-Item C:\Windows\System32\PING.EXE "$game\FakeGame.exe"
 'original-content' | Set-Content "$game\content.txt" -Encoding ascii
+New-Item -ItemType Directory -Force $saves | Out-Null
+'captured-save' | Set-Content "$saves\settings.txt" -Encoding ascii
 @'
 "AppState"
 {
@@ -168,50 +205,88 @@ $json = Get-Content "$out\portable.json" -Raw | ConvertFrom-Json
 Check "package knows the Steam game" (($json.SteamAppId -eq '999') -and ($json.SteamInstallDir -eq 'Fake Game'))
 Check "Steam's record copied" (Test-Path $saved)
 Check "Steam game needs no admin" (-not $json.NeedsAdmin)
+Check "disconnect file included" (Test-Path "$out\Disconnect from this PC.cmd")
 
 "== Steam game: PC without it"
 $env:PORTABILIZER_STEAM_EXE = "$fake\fakesteam.exe"
 Rename-Item $game 'Fake Game gone'
 Move-Item $record "$record.real"
-Start-Process $launcher
-Check "game connected to Steam" (WaitFor { (IsLink $game) -and (Test-Path $record) })
+Remove-Item $saves -Recurse -Force
+Check "connects and hands over to Steam" (RunPackage $launcher)
+Check "game stays connected to Steam" ((IsLink $game) -and (Test-Path $record))
 Check "Steam sees the game's files" ((Get-Content "$game\content.txt" -Raw) -match 'original-content')
+Check "saves stay connected, for Steam's Play button" ((IsLink $saves) -and ((Get-Content "$saves\settings.txt" -Raw) -match 'captured-save'))
 (Get-Content $record) -replace '"buildid"\s+"1"', "`"buildid`"`t`t`"2`"" | Set-Content $record -Encoding ascii
 'updated-by-steam' | Add-Content "$game\content.txt" -Encoding ascii
-PlayFakeGame "$game\FakeGame.exe"
-Check "launcher finished" ($null -eq (Get-Process 'Fake Game Portable' -ErrorAction SilentlyContinue))
-Check "link removed" (-not (Test-Path $game))
-Check "record removed" (-not (Test-Path $record))
+'saved-in-game' | Add-Content "$saves\settings.txt" -Encoding ascii
+
+"== Steam game: next launch with Steam open"
+$steamOpen = Start-Process "$fake\fakesteam.exe" -ArgumentList '-n 120 127.0.0.1' -WindowStyle Hidden -PassThru
+Check "no restart question" (RunPackage $launcher)
+Check "Steam left open" (-not $steamOpen.HasExited)
+Check "still connected" ((IsLink $game) -and (Test-Path $record))
 Check "update stayed in the package" ((Get-Content "$out\App\content.txt" -Raw) -match 'updated-by-steam')
 Check "new version number saved" ((Get-Content $saved -Raw) -match '"buildid"\s+"2"')
-Check "game files survived the unlink" (Test-Path "$out\App\FakeGame.exe")
+Check "save stayed in the package" ((Get-Content "$out\Data\Folders\0\settings.txt" -Raw) -match 'saved-in-game')
+
+"== Steam game: package moved, Steam still open"
+Move-Item $out "$out moved"
+$out = "$out moved"
+$launcher = "$out\Fake Game Portable.exe"
+$saved = "$out\Data\Steam\appmanifest_999.acf"
+Check "no restart question after a move" (RunPackage $launcher)
+Check "game link follows the package" ((Test-Path "$game\content.txt") -and ((Get-Content "$game\content.txt" -Raw) -match 'updated-by-steam'))
+Check "saves link follows the package" ((Test-Path "$saves\settings.txt") -and ((Get-Content "$saves\settings.txt" -Raw) -match 'saved-in-game'))
+Stop-Process $steamOpen -Force
+
+"== Steam game: disconnect"
+Check "disconnect finished" (Disconnect $launcher)
+Check "game link removed" (-not (Test-Path $game))
+Check "record removed" (-not (Test-Path $record))
+Check "saves link removed" (-not (Test-Path $saves))
+Check "game files survived" (Test-Path "$out\App\FakeGame.exe")
+Check "saves survived" ((Get-Content "$out\Data\Folders\0\settings.txt" -Raw) -match 'saved-in-game')
 
 "== Steam game: PC with its own copy"
 Rename-Item "$game gone" 'Fake Game'
 Move-Item "$record.real" $record
+New-Item -ItemType Directory -Force $saves | Out-Null
+'PC-SAVE' | Set-Content "$saves\settings.txt" -Encoding ascii
 $before = (Get-FileHash $record).Hash
-Start-Process $launcher
-Start-Sleep -Seconds 3
+Check "plays and exits" (RunPackage $launcher)
 Check "own copy not replaced" (-not (IsLink $game))
-PlayFakeGame "$game\FakeGame.exe"
 Check "own files untouched" ((Get-Content "$game\content.txt" -Raw) -notmatch 'updated-by-steam')
 Check "own record untouched" ((Get-FileHash $record).Hash -eq $before)
+Check "own saves untouched" ((-not (IsLink $saves)) -and ((Get-Content "$saves\settings.txt" -Raw) -match 'PC-SAVE'))
 
-"== Steam game: leftover record, launcher killed mid-run"
+"== Steam game: leftover record from Steam"
 Rename-Item $game 'Fake Game gone'
 Set-Content $record '"AppState" { "installdir" "Fake Game" "buildid" "7" }' -Encoding ascii
-Start-Process $launcher
-Check "connected despite the leftover" (WaitFor { (IsLink $game) -and ((Get-Content $record -Raw) -match '"buildid"\s+"2"') })
-Get-Process 'Fake Game Portable' | Stop-Process -Force
-Start-Sleep -Seconds 1
-Check "after kill: still connected" (IsLink $game)
-Start-Process $launcher
-Check "next launch: connected again" (WaitFor { (IsLink $game) -and (Test-Path $record) -and -not (Get-ChildItem $state -Recurse -Filter session.json | Where-Object { (Get-Content $_.FullName -Raw) -match 'SteamRecordLive":false' }) })
-PlayFakeGame "$game\FakeGame.exe"
+Check "connects despite the leftover" (RunPackage $launcher)
+Check "this PC's saves set aside" ((IsLink $saves) -and ((Get-Content "$saves.portabilizer-aside\settings.txt" -Raw) -match 'PC-SAVE'))
+Check "disconnect finished" (Disconnect $launcher)
 Check "leftover record put back" ((Get-Content $record -Raw) -match '"buildid" "7"')
 Check "no aside record left" (-not (Test-Path "$record.portabilizer-aside"))
-Check "link removed after recovery" (-not (Test-Path $game))
-Check "package intact after recovery" (Test-Path "$out\App\FakeGame.exe")
+Check "this PC's saves put back" ((-not (IsLink $saves)) -and ((Get-Content "$saves\settings.txt" -Raw) -match 'PC-SAVE'))
+Remove-Item $record
+
+"== Steam game: leftover folder, Steam drops the game, interrupted setup"
+New-Item -ItemType Directory -Force $game | Out-Null
+'leftover-file' | Set-Content "$game\leftover.txt" -Encoding ascii
+Check "connects over the leftover folder" (RunPackage $launcher)
+Check "leftover folder set aside" ((IsLink $game) -and (Test-Path "$game.portabilizer-aside\leftover.txt"))
+(Get-Item $game).Delete()
+Remove-Item $record
+Check "reconnects after Steam dropped it" (RunPackage $launcher)
+Check "connected again" ((IsLink $game) -and (Test-Path $record))
+$journal = Get-ChildItem $state -Recurse -Filter session.json | Where-Object FullName -match 'Fake-Game'
+(Get-Content $journal.FullName -Raw) -replace '"Complete":true', '"Complete":false' | Set-Content $journal.FullName -Encoding utf8
+Check "recovers from an interrupted setup" (RunPackage $launcher)
+Check "saves connected after recovery" (IsLink $saves)
+Check "disconnect finished" (Disconnect $launcher)
+Check "leftover folder put back" ((-not (IsLink $game)) -and (Test-Path "$game\leftover.txt"))
+Check "no aside folder left" (-not (Test-Path "$game.portabilizer-aside"))
+Check "package intact" (Test-Path "$out\App\FakeGame.exe")
 
 "== cleanup"
 Cleanup

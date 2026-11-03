@@ -7,12 +7,16 @@ namespace Portabilizer.Core;
 /// <summary>Finds and drives the Steam client through its own command line. Steam still decides who owns what.</summary>
 internal static partial class Steam
 {
+    const string TestExe = "PORTABILIZER_STEAM_EXE";
+
+    public static bool UnderTest => Environment.GetEnvironmentVariable(TestExe) is not null;
+
     public static string? Exe
     {
         get
         {
             // tools\smoke.ps1 points this at a fake, so the real Steam is never touched by a test.
-            var path = Environment.GetEnvironmentVariable("PORTABILIZER_STEAM_EXE");
+            var path = Environment.GetEnvironmentVariable(TestExe);
             using var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
             path ??= key?.GetValue("SteamExe") as string;
             path = path?.Replace('/', '\\');

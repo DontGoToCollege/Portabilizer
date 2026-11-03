@@ -29,18 +29,22 @@ Close the app before you make it portable.
 
 The starter briefly connects the app's settings to Windows, runs the app, saves any changes back into the folder, and takes the app's settings out of Windows again. If the PC has its own copy of that app's settings, they're set aside first and put back afterwards.
 
+The portable app won't start while the same app is open on that PC, including hidden in the system tray, because swapping settings under a running app would damage them. Close it fully first.
+
 One thing does stay behind: about 30 MB of the starter's own support files in the PC's temp folder, for each portable app you run there. They hold none of your data and can be deleted safely.
 
 If the PC crashes or loses power while the app is open, starting the portable app again on that PC finishes the tidying up. If the portable drive is unplugged while the app is running, plug it back in and do the same.
 
 ## Steam games
 
-A portable Steam game still runs through Steam, so Steam must be installed and signed in to the account that owns the game. What Portabilizer saves you is the download. The portable file connects its game files to Steam, starts the game, and disconnects them when you finish, keeping any update Steam applied.
+A portable Steam game still runs through Steam, so Steam must be installed and signed in to the account that owns the game. What Portabilizer saves you is the download.
 
-- Steam only looks for games when it starts, so if it's already open you'll be asked to let it restart.
-- Steam closes when you finish playing, and reopens if it was open before.
-- If the PC already has the game installed, Steam plays its own copy.
-- Your saves and settings come with the game, but Steam Workshop mods don't.
+Run the portable file once on each PC. It connects the game and your saves to that PC's Steam, and Steam restarts once if it's open. After that Steam treats the game as installed, so you can press Play in Steam or run the portable file, whichever you like. Steam updates the game as usual, and the updates go into your portable folder.
+
+- The game stays connected until you run `Disconnect from this PC` in the portable folder, which puts everything back. **Do this before deleting the portable folder.**
+- The folder has to be there when you play. If you move it or its drive letter changes, run the portable file once to reconnect. Steam won't need to restart.
+- If the PC already has the game installed, Steam plays its own copy with its own saves.
+- Steam Workshop mods don't come with the game.
 - Don't choose Uninstall in Steam while the game is connected, as that could delete the portable copy.
 
 This is new and hasn't been proven with every game.

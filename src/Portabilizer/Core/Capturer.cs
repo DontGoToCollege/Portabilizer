@@ -68,6 +68,8 @@ public static partial class Capturer
             {
                 Directory.CreateDirectory(Path.Combine(outDir, "Data", "Steam"));
                 File.Copy(game.ManifestPath, Path.Combine(outDir, "Data", "Steam", Path.GetFileName(game.ManifestPath)));
+                // Finds the exe by pattern, because a name like Crash Bandicoot™ wouldn't survive in a batch file.
+                File.WriteAllText(Path.Combine(outDir, "Disconnect from this PC.cmd"), "@for %%f in (\"%~dp0*Portable.exe\") do @start \"\" \"%%f\" --disconnect\r\n", Encoding.ASCII);
             }
 
             var exeName = FileSafe().Replace($"{CleanName(app.Name)} Portable", "") + ".exe";

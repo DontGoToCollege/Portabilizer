@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4
+
+- **Fixes a bug that could damage an installed app's settings.** If an app handed over to another copy of itself, the starter could decide it had closed and swap the settings back while it was still running. With Discord on a PC that also has Discord installed, this reset the installed copy's settings and sign-in. The starter now waits for every copy of the app, and won't start while one is already open. Remake any portable folders made with an earlier version.
+- Portable Steam games now stay connected to each PC's Steam, so Steam only restarts the first time, and stays open when you finish.
+- You can press Play in Steam itself, and your portable saves are used.
+- Added `Disconnect from this PC`, which puts everything back on that PC.
+
 ## 0.1.3
 
 - Portable Steam games now run through Steam using the portable files, instead of Steam offering to reinstall them. The portable file connects the game to Steam, starts it, and disconnects it afterwards, keeping any update Steam applied.

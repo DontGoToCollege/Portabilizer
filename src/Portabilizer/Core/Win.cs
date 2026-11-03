@@ -104,6 +104,13 @@ internal static class Win
         return false;
     }
 
+    public static bool AnyRunningNamed(string exeName)
+    {
+        var running = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exeName));
+        foreach (var p in running) p.Dispose();
+        return running.Length > 0;
+    }
+
     static string? ImagePath(int pid)
     {
         const uint QueryLimited = 0x1000;

@@ -10,7 +10,7 @@
     <AssemblyName>Portabilizer</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.3</Version>
+    <Version>0.1.4</Version>
     <Authors>Portabilizer</Authors>
     <Product>Portabilizer</Product>
     <Description>Turns installed Windows programs into portable folders</Description>
