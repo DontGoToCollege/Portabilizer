@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace Portabilizer.Core;
 
-/// <summary>Copies the Visual C++ runtime files an app needs next to its programs, since another PC may not have them.</summary>
+/// <summary>Copies the Visual C++ and DirectX helper files an app needs next to its programs, since another PC may not have them.</summary>
 internal static partial class Runtimes
 {
     public static void CopyInto(string appDir, string mainExeDir)
@@ -43,6 +43,8 @@ internal static partial class Runtimes
         }
     }
 
+    public static Machine MachineOf(string file) => Read(file).Machine;
+
     static (Machine Machine, List<string> Imports) Read(string file)
     {
         var imports = new List<string>();
@@ -74,6 +76,7 @@ internal static partial class Runtimes
         }
     }
 
-    [GeneratedRegex(@"^(msvcp|vcruntime|vcomp|concrt|vccorlib|mfc|mfcm)\d.*\.dll$", RegexOptions.IgnoreCase)]
+    // Visual C++ runtimes old and new, plus the DirectX extras older games need that Windows doesn't include.
+    [GeneratedRegex(@"^((msvcp|msvcr|vcruntime|vcomp|concrt|vccorlib|mfc|mfcm)\d.*|d3dx9_\d+|d3dx10(_\d+)?|d3dx11_\d+|d3dcompiler_(3\d|4[0-6])|xinput1_[123]|x3daudio1_\d|xaudio2_[0-7]|xapofx1_\d|xactengine\d_\d)\.dll$", RegexOptions.IgnoreCase)]
     private static partial Regex Redistributable();
 }

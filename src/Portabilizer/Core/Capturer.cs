@@ -21,7 +21,7 @@ public static partial class Capturer
         if (Win.AnyRunningFrom(app.InstallPath))
             throw new IOException($"{app.Name} is open. Close it and try again.");
 
-        var needed = plan.AppBytes + (includeData ? plan.DataBytes : 0);
+        var needed = plan.AppBytes + plan.RuntimeBytes + (includeData ? plan.DataBytes : 0);
         var existed = Directory.Exists(outDir);
         Directory.CreateDirectory(outDir);
         var free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(outDir))!).AvailableFreeSpace;
@@ -44,6 +44,8 @@ public static partial class Capturer
             CopyTree(app.InstallPath, appDir, Copied);
             var relative = Path.GetRelativePath(app.InstallPath, mainExe);
             if (plan.Steam is null) Runtimes.CopyInto(appDir, Path.GetDirectoryName(Path.Combine(appDir, relative))!); // Steam sets up its own games' runtimes
+            foreach (var (from, to) in DotNet.Folders(plan.DotNetCopies))
+                CopyTree(from, Path.Combine(outDir, "Data", "DotNet", to), Copied);
 
             var folders = new List<FolderLink>();
             if (includeData)

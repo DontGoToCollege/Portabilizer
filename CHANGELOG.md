@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7
+
+- Apps built on .NET bring their own copy of it, taken from this PC, so the other PC doesn't need it installed. Steam games are the exception, because Steam starts them itself.
+- Older Visual C++ files and the DirectX extras older games need are now added too, alongside the newer Visual C++ files.
+- Apps that list more than one .NET framework are now checked correctly.
+- Clicking a filter clears the search box, so the filter shows every app in that group.
+
 ## 0.1.6
 
 - New icon.

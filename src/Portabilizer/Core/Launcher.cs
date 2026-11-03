@@ -153,6 +153,13 @@ public static class Launcher
         var exe = Path.Combine(root, m.MainExe);
         var psi = new ProcessStartInfo(exe) { WorkingDirectory = Path.GetDirectoryName(exe)!, UseShellExecute = false };
         foreach (var a in args) psi.ArgumentList.Add(a);
+        // An app built on .NET looks here before the PC's own .NET, so the copy in the package is used.
+        (string Arch, string[] Names)[] roots = [("x64", ["DOTNET_ROOT", "DOTNET_ROOT_X64"]), ("x86", ["DOTNET_ROOT(x86)", "DOTNET_ROOT_X86"])];
+        foreach (var (arch, names) in roots)
+        {
+            var dir = Path.Combine(root, "Data", "DotNet", arch);
+            if (Directory.Exists(dir)) foreach (var name in names) psi.Environment[name] = dir;
+        }
 
         Process? main;
         const int ElevationRequired = 740;

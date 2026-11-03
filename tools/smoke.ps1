@@ -3,6 +3,7 @@ param([string]$Exe, [string]$Work)
 $ErrorActionPreference = 'Stop'
 $uninstall = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PortabilizerSmoke'
 $steamUninstall = "$uninstall-Steam"
+$dotnetUninstall = "$uninstall-DotNet"
 $vendor = 'HKCU:\Software\SmokePub'
 $key = "$vendor\Smoke App"
 $data = "$env:APPDATA\Smoke App"
@@ -13,17 +14,17 @@ function Check($label, $ok) { if ($ok) { $script:pass++; "  ok   $label" } else 
 
 function Cleanup {
     Remove-Item Env:\PORTABILIZER_STEAM_EXE -ErrorAction SilentlyContinue
-    foreach ($k in $uninstall, $steamUninstall, $vendor) { if (Test-Path $k) { Remove-Item $k -Recurse -Force } }
+    foreach ($k in $uninstall, $steamUninstall, $dotnetUninstall, $vendor) { if (Test-Path $k) { Remove-Item $k -Recurse -Force } }
     foreach ($d in $data, $saves) {
         if (Test-Path "$d.portabilizer-aside") { Remove-Item "$d.portabilizer-aside" -Recurse -Force }
         if (Test-Path $d) {
             if ((Get-Item $d).Attributes -band [IO.FileAttributes]::ReparsePoint) { (Get-Item $d).Delete() } else { Remove-Item $d -Recurse -Force }
         }
     }
-    if (Test-Path $state) { Get-ChildItem $state -Directory | Where-Object Name -match '^(Smoke|Fake)-' | Remove-Item -Recurse -Force }
+    if (Test-Path $state) { Get-ChildItem $state -Directory | Where-Object Name -match '^(Smoke|Fake|DotNet)-' | Remove-Item -Recurse -Force }
     # .NET unpacks each package's support files here, named after its exe.
     $cache = Join-Path $env:TEMP '.net'
-    if (Test-Path $cache) { Get-ChildItem $cache -Directory | Where-Object Name -match '^(Smoke App|Fake Game)' | Remove-Item -Recurse -Force }
+    if (Test-Path $cache) { Get-ChildItem $cache -Directory | Where-Object Name -match '^(Smoke App|Fake Game|DotNet Probe)' | Remove-Item -Recurse -Force }
 }
 
 function IsLink($path) { (Test-Path -LiteralPath $path) -and [bool]((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) }
@@ -195,6 +196,27 @@ Start-Process $launcher -ArgumentList "/c `"$Work\probe.cmd`"" -Wait
 $r = Get-Content "$Work\result.txt" -Raw
 Check "registry follows the new location" ($r.Contains("$Work\moved here\App"))
 Check "edits from earlier runs survived" ($r -match 'changed-by-run')
+
+"== .NET app brings its own runtime"
+# A small app built on shared .NET reports which copy of .NET it actually ran on.
+$probeSrc = "$Work\probe-src"
+New-Item -ItemType Directory -Force $probeSrc | Out-Null
+'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net10.0</TargetFramework><AssemblyName>DotNetProbe</AssemblyName><ImplicitUsings>enable</ImplicitUsings></PropertyGroup></Project>' | Set-Content "$probeSrc\Probe.csproj" -Encoding ascii
+'File.WriteAllText(args[0], typeof(object).Assembly.Location);' | Set-Content "$probeSrc\Program.cs" -Encoding ascii
+dotnet build "$probeSrc\Probe.csproj" -c Release -o "$Work\probe-app" --nologo -v q | Out-Null
+Check "test app built" (Test-Path "$Work\probe-app\DotNetProbe.exe")
+New-Item $dotnetUninstall -Force | Out-Null
+Set-ItemProperty $dotnetUninstall DisplayName 'DotNet Probe'
+Set-ItemProperty $dotnetUninstall Publisher 'SmokePub Inc'
+Set-ItemProperty $dotnetUninstall InstallLocation "$Work\probe-app"
+$p = Start-Process $Exe -ArgumentList "--capture `"DotNet Probe`" `"$Work\dnout`"" -PassThru -Wait
+Check "capture exit 0 (got $($p.ExitCode))" ($p.ExitCode -eq 0)
+Check ".NET copied into the package" (@(Get-ChildItem "$Work\dnout\Data\DotNet\x64\shared\Microsoft.NETCore.App" -Directory -ErrorAction SilentlyContinue).Count -eq 1)
+Check ".NET host copied into the package" (@(Get-ChildItem "$Work\dnout\Data\DotNet\x64\host\fxr" -Directory -ErrorAction SilentlyContinue).Count -eq 1)
+$launcherDn = (Get-ChildItem "$Work\dnout" -Filter '*Portable.exe').FullName
+Start-Process $launcherDn -ArgumentList "`"$Work\ran-on.txt`"" -Wait
+$ranOn = if (Test-Path "$Work\ran-on.txt") { Get-Content "$Work\ran-on.txt" -Raw } else { 'nothing written' }
+Check "app ran on the package's .NET ($ranOn)" ($ranOn.StartsWith("$Work\dnout\Data\DotNet\x64\shared\"))
 
 "== Steam game: capture"
 # A fake Steam: a copy of ping that exits at once, under a name that can't match the real client.

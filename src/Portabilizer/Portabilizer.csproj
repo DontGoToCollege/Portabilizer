@@ -11,7 +11,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\Portabilizer.ico</ApplicationIcon>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.6</Version>
+    <Version>0.1.7</Version>
     <Authors>Portabilizer</Authors>
     <Product>Portabilizer</Product>
     <Description>Turns installed Windows programs into portable folders</Description>

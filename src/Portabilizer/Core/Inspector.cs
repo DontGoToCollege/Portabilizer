@@ -17,6 +17,8 @@ public sealed class Plan
     public List<string> Exes { get; } = [];
     public long AppBytes { get; set; }
     public SteamGame? Steam { get; set; }
+    internal List<DotNet.Framework> DotNetCopies { get; } = [];
+    public long RuntimeBytes { get; set; }
     public List<DataFolder> Folders { get; } = [];
     public List<string> Keys { get; } = [];
     public List<Finding> Findings { get; } = [];
@@ -46,11 +48,12 @@ public static partial class Inspector
         }
 
         var names = NamesFor(app);
-        ReadInstallFolder(plan);
+        var runtimeConfigs = ReadInstallFolder(plan);
         FindData(plan, names);
         FindKeys(plan, names);
         CheckServices(plan, ProductOf(app));
         CheckKnownNeeds(plan);
+        CheckDotNet(plan, runtimeConfigs);
 
         if (plan.Exes.Count == 0) plan.Findings.Add(new(Level.Blocked, "No program file was found in the install folder."));
         if (plan.Keys.Any(k => k.StartsWith("HKLM"))) plan.Findings.Add(new(Level.Caution, "Will ask for administrator permission each time it starts, because it keeps settings in a PC-wide part of Windows."));
@@ -89,8 +92,9 @@ public static partial class Inspector
         && part.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
         && !Denied.Contains(part, StringComparer.OrdinalIgnoreCase);
 
-    static void ReadInstallFolder(Plan plan)
+    static List<string> ReadInstallFolder(Plan plan)
     {
+        var runtimeConfigs = new List<string>();
         var exes = new List<(string Path, long Size)>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
@@ -100,8 +104,7 @@ public static partial class Inspector
             if (file.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase)) exes.Add((file.FullName, file.Length));
             seen.Add(file.Name);
             foreach (var part in file.FullName.Split('\\')) seen.Add(part);
-            if (file.Name.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase) && DotNetNeeded(file.FullName) is { } dotnet)
-                AddOnce(plan, new(Level.Caution, $"Needs {dotnet} installed on each PC."));
+            if (file.Name.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase)) runtimeConfigs.Add(file.FullName);
         }
 
         foreach (var name in AntiCheat)
@@ -117,6 +120,31 @@ public static partial class Inspector
             .ThenBy(e => e.Path.Count(c => c == '\\'))
             .ThenByDescending(e => e.Size)
             .Select(e => e.Path));
+        return runtimeConfigs;
+    }
+
+    /// <summary>Apps built on shared .NET get a copy of it from this PC. Steam starts its own games, so it can't be handed one.</summary>
+    static void CheckDotNet(Plan plan, List<string> runtimeConfigs)
+    {
+        foreach (var config in runtimeConfigs)
+        {
+            var needs = DotNet.Needs(config);
+            if (needs.Count == 0) continue;
+            var label = $".NET {needs[0].Version.ToString(2)}";
+            var exe = config[..^".runtimeconfig.json".Length] + ".exe";
+            var x86 = File.Exists(exe) && Runtimes.MachineOf(exe) == System.Reflection.PortableExecutable.Machine.I386;
+            var found = plan.Steam is null ? DotNet.Resolve(needs, x86) : null;
+            if (found is null)
+            {
+                AddOnce(plan, new(Level.Caution, plan.Steam is null
+                    ? $"Needs {label} installed on each PC. This PC doesn't have it either, so it can't be included."
+                    : $"Needs {label} installed on each PC."));
+                continue;
+            }
+            foreach (var f in found.Where(f => !plan.DotNetCopies.Contains(f))) plan.DotNetCopies.Add(f);
+            AddOnce(plan, new(Level.Good, $"Brings its own copy of {label}, so the other PC doesn't need it installed."));
+        }
+        plan.RuntimeBytes = DotNet.Folders(plan.DotNetCopies).Sum(f => SizeOf(f.From));
     }
 
     static string Letters(string text) => string.Concat(text.Where(char.IsLetterOrDigit)).ToLowerInvariant();
@@ -130,19 +158,6 @@ public static partial class Inspector
     static void AddOnce(Plan plan, Finding f)
     {
         if (!plan.Findings.Contains(f)) plan.Findings.Add(f);
-    }
-
-    static string? DotNetNeeded(string runtimeConfig)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(File.ReadAllText(runtimeConfig));
-            var options = doc.RootElement.GetProperty("runtimeOptions");
-            if (options.TryGetProperty("includedFrameworks", out _)) return null; // carries its own copy
-            var version = options.GetProperty("framework").GetProperty("version").GetString() ?? "";
-            return $".NET {string.Join('.', version.Split('.').Take(2))}";
-        }
-        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or IOException) { return null; }
     }
 
     static void FindData(Plan plan, List<string> names)

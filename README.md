@@ -19,8 +19,8 @@ Close the app before you make it portable.
 
 ## What ends up in the folder
 
-- `App`: a copy of the program. The original is never changed.
-- `Data`: your settings for that app, if you left the box ticked.
+- `App`: a copy of the program. The original is never changed. Any Visual C++ or older DirectX files it needs are added, so the other PC doesn't need them installed.
+- `Data`: your settings for that app, if you left the box ticked, and a copy of .NET if the app is built on it.
 - A small starter program and `portable.json`, which tells it what to do.
 
 **Your settings can include saved sign-ins, so don't give the folder to other people if you included them.**

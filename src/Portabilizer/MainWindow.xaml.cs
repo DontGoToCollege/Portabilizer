@@ -92,6 +92,7 @@ public partial class MainWindow : Window
     void Filter_Checked(object sender, RoutedEventArgs e)
     {
         _show = (sender as FrameworkElement)?.Tag as Level?;
+        if (Search is not null) Search.Text = ""; // a filter starts a fresh look, so an old search doesn't hide its apps
         _view?.Refresh();
     }
 
