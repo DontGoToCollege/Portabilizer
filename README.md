@@ -27,7 +27,9 @@ Close the app before you make it portable.
 
 ## What happens when you run it
 
-The starter briefly connects the app's settings to Windows, runs the app, saves any changes back into the folder, and removes everything again. If the PC has its own copy of that app's settings, they're set aside first and put back afterwards.
+The starter briefly connects the app's settings to Windows, runs the app, saves any changes back into the folder, and takes the app's settings out of Windows again. If the PC has its own copy of that app's settings, they're set aside first and put back afterwards.
+
+One thing does stay behind: about 30 MB of the starter's own support files in the PC's temp folder, for each portable app you run there. They hold none of your data and can be deleted safely.
 
 If the PC crashes or loses power while the app is open, starting the portable app again on that PC finishes the tidying up. If the portable drive is unplugged while the app is running, plug it back in and do the same.
 

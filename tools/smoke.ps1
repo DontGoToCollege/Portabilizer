@@ -16,6 +16,9 @@ function Cleanup {
         if ((Get-Item $data).Attributes -band [IO.FileAttributes]::ReparsePoint) { (Get-Item $data).Delete() } else { Remove-Item $data -Recurse -Force }
     }
     if (Test-Path $state) { Get-ChildItem $state -Directory -Filter 'Smoke-App*' | Remove-Item -Recurse -Force }
+    # .NET unpacks each package's support files here, named after its exe.
+    $cache = Join-Path $env:TEMP '.net'
+    if (Test-Path $cache) { Get-ChildItem $cache -Directory -Filter 'Smoke App*' | Remove-Item -Recurse -Force }
 }
 
 Cleanup

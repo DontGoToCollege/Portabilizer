@@ -7,7 +7,7 @@ First public release.
 - Lists installed apps and gives each one a plain-language verdict before anything is copied.
 - Finds an app's folder, settings folders and registry settings, and flags drivers, services, anti-cheat and store-launcher games.
 - Makes a portable folder, including any Visual C++ runtime files the app needs.
-- Runs the portable app, saves changes back into the folder, and leaves the PC as it found it, including after a crash.
+- Runs the portable app, saves changes back into the folder, and puts the PC's own app settings back afterwards, including after a crash. The starter's support files, about 30 MB, stay in the PC's temp folder.
 
 ## 0.1.0
 
