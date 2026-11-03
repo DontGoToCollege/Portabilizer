@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.6
+
+- New icon.
+- The version number shows in the title bar.
+- Every app is checked in the background and marked with a coloured dot, and buttons above the list filter it by verdict.
+- Save to picks the place, and a folder named after the app is made there. Untick **Make a folder for the app here** to save straight into the chosen folder.
+- Saving into a folder that already has other things in it is safe: nothing there is overwritten, and a failed copy removes only what Portabilizer added.
+
 ## 0.1.5
 
 - Steam games are found even when Steam leaves their install location blank in Windows' app list, which often happens after reinstalling a game. Before, they showed "This app's folder can't be found."

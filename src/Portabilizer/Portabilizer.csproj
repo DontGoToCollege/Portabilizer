@@ -9,8 +9,9 @@
     <RootNamespace>Portabilizer</RootNamespace>
     <AssemblyName>Portabilizer</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\Portabilizer.ico</ApplicationIcon>
     <LangVersion>latest</LangVersion>
-    <Version>0.1.5</Version>
+    <Version>0.1.6</Version>
     <Authors>Portabilizer</Authors>
     <Product>Portabilizer</Product>
     <Description>Turns installed Windows programs into portable folders</Description>
@@ -29,6 +30,10 @@
 
   <ItemGroup>
     <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Portabilizer.ico" />
   </ItemGroup>
 
 </Project>

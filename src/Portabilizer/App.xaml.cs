@@ -55,7 +55,8 @@ public partial class App : Application
                 if (target is null) return 2;
                 var capture = Inspector.Inspect(target);
                 if (capture.Verdict == Level.Blocked) return 3;
-                Capturer.Run(capture, capture.Exes[0], includeData: true, args[2], new Progress<(double, string)>());
+                try { Capturer.Run(capture, capture.Exes[0], includeData: true, args[2], new Progress<(double, string)>()); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return 4; }
                 return 0;
 
             default:

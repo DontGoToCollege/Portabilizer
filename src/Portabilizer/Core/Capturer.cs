@@ -6,22 +6,28 @@ namespace Portabilizer.Core;
 /// <summary>Writes a portable package. The installed app is only read, and the manifest goes last so a half-finished package never runs.</summary>
 public static partial class Capturer
 {
+    public const string DisconnectFile = "Disconnect from this PC.cmd";
+
     public static void Run(Plan plan, string mainExe, bool includeData, string outDir, IProgress<(double Fraction, string Status)> progress)
     {
         var app = plan.App;
-        if (Directory.Exists(outDir) && Directory.EnumerateFileSystemEntries(outDir).Any())
-            throw new IOException("That folder already has files in it. Pick an empty one.");
+        var exeName = FileSafe().Replace($"{CleanName(app.Name)} Portable", "") + ".exe";
+        // The chosen folder may hold other things, such as a desktop, so only these are ever added or removed.
+        string[] ours = ["App", "Data", exeName, Manifest.FileName, DisconnectFile];
+        if (ours.FirstOrDefault(name => Path.Exists(Path.Combine(outDir, name))) is { } clash)
+            throw new IOException($"That folder already has \"{clash}\" in it. Pick another folder, or tick \"Make a folder for the app here\".");
         if (IsInside(outDir, app.InstallPath))
             throw new IOException("The portable folder can't go inside the app's own folder.");
         if (Win.AnyRunningFrom(app.InstallPath))
             throw new IOException($"{app.Name} is open. Close it and try again.");
 
         var needed = plan.AppBytes + (includeData ? plan.DataBytes : 0);
+        var existed = Directory.Exists(outDir);
         Directory.CreateDirectory(outDir);
         var free = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(outDir))!).AvailableFreeSpace;
         if (free < needed)
         {
-            Directory.Delete(outDir);
+            if (!existed) Directory.Delete(outDir);
             throw new IOException($"Not enough free space. This needs {Size(needed)} and the drive has {Size(free)}.");
         }
 
@@ -69,10 +75,9 @@ public static partial class Capturer
                 Directory.CreateDirectory(Path.Combine(outDir, "Data", "Steam"));
                 File.Copy(game.ManifestPath, Path.Combine(outDir, "Data", "Steam", Path.GetFileName(game.ManifestPath)));
                 // Finds the exe by pattern, because a name like Crash Bandicoot™ wouldn't survive in a batch file.
-                File.WriteAllText(Path.Combine(outDir, "Disconnect from this PC.cmd"), "@for %%f in (\"%~dp0*Portable.exe\") do @start \"\" \"%%f\" --disconnect\r\n", Encoding.ASCII);
+                File.WriteAllText(Path.Combine(outDir, DisconnectFile), "@for %%f in (\"%~dp0*Portable.exe\") do @start \"\" \"%%f\" --disconnect\r\n", Encoding.ASCII);
             }
 
-            var exeName = FileSafe().Replace($"{CleanName(app.Name)} Portable", "") + ".exe";
             File.Copy(Environment.ProcessPath!, Path.Combine(outDir, exeName));
             var slug = Slug().Replace(app.Name, "-").Trim('-');
             var id = $"{slug[..Math.Min(slug.Length, 32)]}-{Guid.NewGuid():N}";
@@ -81,7 +86,11 @@ public static partial class Capturer
         }
         catch
         {
-            Directory.Delete(outDir, recursive: true); // created empty above, so this is only our own partial copy
+            // None of these existed before (checked above), so removing them only undoes this copy.
+            foreach (var path in ours.Select(name => Path.Combine(outDir, name)))
+                if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+                else if (File.Exists(path)) File.Delete(path);
+            if (!existed && !Directory.EnumerateFileSystemEntries(outDir).Any()) Directory.Delete(outDir);
             throw;
         }
     }

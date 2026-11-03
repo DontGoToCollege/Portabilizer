@@ -1,11 +1,12 @@
 <Window x:Class="Portabilizer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Portabilizer" Width="940" Height="640" MinWidth="780" MinHeight="520"
+        Title="Portabilizer" Width="980" Height="680" MinWidth="820" MinHeight="560"
+        Icon="Assets/Portabilizer.ico"
         WindowStartupLocation="CenterScreen">
     <Grid Margin="20">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="340" />
             <ColumnDefinition Width="24" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
@@ -14,14 +15,32 @@
             <TextBlock DockPanel.Dock="Top" Text="Pick an app" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,10" />
             <TextBox x:Name="Search" DockPanel.Dock="Top" Margin="0,0,0,10" TextChanged="Search_TextChanged"
                      ToolTip="Type to filter the list" AutomationProperties.Name="Search apps" />
+            <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4">
+                <WrapPanel.Resources>
+                    <Style TargetType="RadioButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+                        <Setter Property="GroupName" Value="Show" />
+                        <Setter Property="Margin" Value="0,0,6,6" />
+                        <Setter Property="Padding" Value="10,4" />
+                        <EventSetter Event="Checked" Handler="Filter_Checked" />
+                    </Style>
+                </WrapPanel.Resources>
+                <RadioButton x:Name="ShowAll" IsChecked="True" Content="All" />
+                <RadioButton x:Name="ShowGood" Tag="{x:Static local:Level.Good}" xmlns:local="clr-namespace:Portabilizer.Core" />
+                <RadioButton x:Name="ShowCaution" Tag="{x:Static local:Level.Caution}" xmlns:local="clr-namespace:Portabilizer.Core" />
+                <RadioButton x:Name="ShowBlocked" Tag="{x:Static local:Level.Blocked}" xmlns:local="clr-namespace:Portabilizer.Core" />
+            </WrapPanel>
+            <TextBlock x:Name="Checking" DockPanel.Dock="Top" FontSize="12" Opacity="0.7" Margin="0,0,0,6" />
             <ListBox x:Name="Apps" SelectionChanged="Apps_SelectionChanged" HorizontalContentAlignment="Stretch"
                      AutomationProperties.Name="Installed apps">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Margin="0,3">
-                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
+                        <DockPanel Margin="0,3" ToolTip="{Binding VerdictText}">
+                            <Ellipse DockPanel.Dock="Left" Width="10" Height="10" Margin="0,0,10,0" Fill="{Binding Dot}" VerticalAlignment="Center" />
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Detail}" FontSize="12" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DockPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
@@ -45,10 +64,13 @@
                 <CheckBox x:Name="IncludeData" IsChecked="True" Content="Include my settings and saved data" />
                 <TextBlock x:Name="DataNote" FontSize="12" Opacity="0.7" Margin="0,2,0,10" TextWrapping="Wrap" />
                 <TextBlock Text="Save to" Margin="0,0,0,4" />
-                <DockPanel Margin="0,0,0,12">
+                <DockPanel Margin="0,0,0,6">
                     <Button DockPanel.Dock="Right" Content="Browse..." Margin="8,0,0,0" Click="Browse_Click" />
-                    <TextBox x:Name="SaveTo" AutomationProperties.Name="Save to folder" />
+                    <TextBox x:Name="SaveTo" AutomationProperties.Name="Save to folder" TextChanged="SaveTo_Changed" />
                 </DockPanel>
+                <CheckBox x:Name="OwnFolder" IsChecked="True" Content="Make a folder for the app here"
+                          Checked="SaveTo_Changed" Unchecked="SaveTo_Changed" />
+                <TextBlock x:Name="SavePreview" FontSize="12" Opacity="0.7" Margin="0,2,0,12" TextWrapping="Wrap" />
                 <ProgressBar x:Name="Progress" Height="6" Margin="0,0,0,6" Maximum="1" Visibility="Collapsed" />
                 <TextBlock x:Name="Status" FontSize="12" Margin="0,0,0,6" TextTrimming="CharacterEllipsis" />
                 <Button x:Name="Make" Content="Make portable" HorizontalAlignment="Right" Padding="20,8" Click="Make_Click" />

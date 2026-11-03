@@ -92,6 +92,31 @@ Check "no absolute install path left" (-not $reg.Contains($inst.Replace('\','\\'
 Check "original app untouched" ((Get-ItemProperty $key).Greeting -eq 'from-capture')
 "manifest:"; Get-Content "$Work\out\portable.json"
 
+"== capture into a folder that already has things in it"
+$shared = "$Work\shared"
+New-Item -ItemType Directory -Force $shared | Out-Null
+'keep me' | Set-Content "$shared\keep.txt" -Encoding ascii
+$p = Start-Process $Exe -ArgumentList "--capture `"Smoke App 1.2`" `"$shared`"" -PassThru -Wait
+Check "captures beside other files (exit $($p.ExitCode))" ($p.ExitCode -eq 0)
+Check "other files untouched" ((Get-Content "$shared\keep.txt" -Raw) -match 'keep me')
+Check "package complete" ((Test-Path "$shared\portable.json") -and (Test-Path "$shared\App\SmokeApp.exe"))
+$p = Start-Process $Exe -ArgumentList "--capture `"Smoke App 1.2`" `"$shared`"" -PassThru -Wait
+Check "refuses to overwrite a package (exit $($p.ExitCode))" ($p.ExitCode -eq 4)
+Check "existing package untouched" ((Test-Path "$shared\portable.json") -and (Test-Path "$shared\App\SmokeApp.exe"))
+
+"== failed capture removes only what it added"
+$failDir = "$Work\shared2"
+New-Item -ItemType Directory -Force $failDir | Out-Null
+'keep me' | Set-Content "$failDir\keep.txt" -Encoding ascii
+'locked' | Set-Content "$inst\locked.dat" -Encoding ascii
+$lock = [IO.File]::Open("$inst\locked.dat", 'Open', 'Read', 'None')
+$p = Start-Process $Exe -ArgumentList "--capture `"Smoke App 1.2`" `"$failDir`"" -PassThru -Wait
+$lock.Dispose()
+Remove-Item "$inst\locked.dat"
+Check "copy failed as intended (exit $($p.ExitCode))" ($p.ExitCode -eq 4)
+Check "other files untouched after failure" ((Get-Content "$failDir\keep.txt" -Raw) -match 'keep me')
+Check "nothing half-made left" (@(Get-ChildItem $failDir -Force).Count -eq 1)
+
 "== other PC: nothing installed"
 Remove-Item $uninstall -Recurse -Force; Remove-Item $vendor -Recurse -Force; Remove-Item $data -Recurse -Force
 Rename-Item $inst 'gone'

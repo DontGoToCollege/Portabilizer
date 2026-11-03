@@ -7,12 +7,12 @@ This is an early version. It already works on simple apps, but it can't move eve
 ## How to use it
 
 1. Download `Portabilizer.exe` from the [Releases page](https://github.com/DontGoToCollege/Portabilizer/releases). There's nothing to install. Windows may warn you the first time because the program isn't signed yet.
-2. Run it and pick an app from the list.
+2. Run it and pick an app from the list. Every app is checked in the background and gets a coloured dot. The buttons above the list show only the apps in one group.
 3. Read the verdict:
    - **Should work well:** nothing was found that would get in the way.
    - **Should work, with limits:** it explains what to expect, such as needing administrator permission.
    - **Can't be made portable:** it explains why, and the button is turned off.
-4. Choose where to save it and click **Make portable**.
+4. Choose where to save it and click **Make portable**. Portabilizer makes a folder named after the app inside the place you pick, such as `Desktop\Audacity 3.7.8 Portable`. Untick **Make a folder for the app here** to put the files straight into the chosen folder instead. It never overwrites anything already there.
 5. Copy the folder anywhere and run the program inside it, named like `Audacity Portable.exe`.
 
 Close the app before you make it portable.
